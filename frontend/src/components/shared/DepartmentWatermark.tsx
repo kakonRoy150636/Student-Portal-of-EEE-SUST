@@ -3,14 +3,10 @@ import React from 'react';
 export const DepartmentWatermark = () => {
   return (
     <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden flex items-center justify-center">
-      {/* Sci-Fi Grid Overlay */}
       <div className="absolute inset-0 cyber-grid-bg opacity-70" />
-
-      {/* Radial Ambient Glows */}
       <div className="absolute top-1/4 left-1/4 h-[500px] w-[500px] rounded-full bg-cyan-500/[0.04] blur-[120px]" />
       <div className="absolute bottom-1/4 right-1/4 h-[500px] w-[500px] rounded-full bg-[#FF1E56]/[0.05] blur-[140px]" />
 
-      {/* EEE SUST Department Logo Hologram Watermark */}
       <div className="relative flex items-center justify-center opacity-[0.06] select-none">
         <svg
           className="w-[700px] h-[700px] max-w-[90vw] text-cyan-400 animate-[spin_180s_linear_infinite]"
