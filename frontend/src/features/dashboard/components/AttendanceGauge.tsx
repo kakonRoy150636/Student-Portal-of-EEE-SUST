@@ -1,83 +1,79 @@
 import React from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { CheckCircle2, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, Crosshair } from 'lucide-react';
 
 export const AttendanceGauge = () => {
   const percentage = 88.5;
   const threshold = 75.0;
-  const isEligible = percentage >= threshold;
-
-  // SVG circular gauge calculations
   const radius = 56;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
   return (
-    <Card className="border border-slate-200/80 bg-white/70 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/60">
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold">Eligibility Threshold</CardTitle>
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${
-              isEligible
-                ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400 dark:ring-emerald-500/20'
-                : 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-400 dark:ring-amber-500/20'
-            }`}
-          >
-            {isEligible ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
-            {isEligible ? 'Collegiate' : 'Non-Collegiate'}
-          </span>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col items-center justify-center gap-6 py-2 sm:flex-row">
-          {/* Circular SVG Gauge */}
-          <div className="relative flex items-center justify-center">
-            <svg className="h-36 w-36 -rotate-90 transform">
-              <circle
-                cx="72"
-                cy="72"
-                r={radius}
-                className="stroke-slate-100 dark:stroke-slate-800"
-                strokeWidth="10"
-                fill="transparent"
-              />
-              <circle
-                cx="72"
-                cy="72"
-                r={radius}
-                className="stroke-emerald-500 transition-all duration-1000 ease-out"
-                strokeWidth="10"
-                strokeDasharray={circumference}
-                strokeDashoffset={strokeDashoffset}
-                strokeLinecap="round"
-                fill="transparent"
-              />
-            </svg>
-            <div className="absolute flex flex-col items-center">
-              <span className="text-2xl font-black text-slate-900 dark:text-slate-100">{percentage}%</span>
-              <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Total Avg</span>
-            </div>
-          </div>
+    <div className="hud-box corner-brackets rounded-xl p-5 flex flex-col justify-between">
+      <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 font-mono text-xs">
+        <span className="text-slate-300 flex items-center gap-1.5 font-bold uppercase tracking-wider">
+          <Crosshair className="h-4 w-4 text-[#FF1E56]" />
+          TELEMETRY // COLLEGIATE SCAN
+        </span>
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/30">
+          <ShieldCheck className="h-3 w-3" />
+          CLEARANCE: GRANTED
+        </span>
+      </div>
 
-          {/* Details breakdown */}
-          <div className="flex-1 space-y-3 text-xs">
-            <div className="flex justify-between rounded-lg bg-slate-50 p-2.5 dark:bg-slate-800/50">
-              <span className="text-slate-500">Minimum Exam Cutoff</span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200">{threshold}%</span>
-            </div>
-            <div className="flex justify-between rounded-lg bg-slate-50 p-2.5 dark:bg-slate-800/50">
-              <span className="text-slate-500">Safety Buffer</span>
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                +{(percentage - threshold).toFixed(1)}% above cutoff
-              </span>
-            </div>
-            <p className="text-[11px] leading-relaxed text-slate-400">
-              You meet the departmental collegiate requirements and are cleared for final examinations.
-            </p>
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-6 py-4">
+        {/* রেডার সার্কুলার গেজ */}
+        <div className="relative flex items-center justify-center">
+          <svg className="h-36 w-36 -rotate-90 transform">
+            <circle
+              cx="72"
+              cy="72"
+              r={radius}
+              className="stroke-slate-800"
+              strokeWidth="8"
+              strokeDasharray="4 4"
+              fill="transparent"
+            />
+            <circle
+              cx="72"
+              cy="72"
+              r={radius}
+              className="stroke-[#00F0FF] transition-all duration-1000 ease-out"
+              strokeWidth="8"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+              strokeLinecap="round"
+              fill="transparent"
+            />
+          </svg>
+
+          <div className="absolute flex flex-col items-center font-mono">
+            <span className="text-2xl font-black text-white">{percentage}%</span>
+            <span className="text-[9px] uppercase tracking-widest text-slate-400">SCORE</span>
           </div>
         </div>
-      </CardContent>
-    </Card>
+
+        <div className="flex-1 space-y-2.5 font-mono text-xs w-full">
+          <div className="flex justify-between rounded bg-slate-900/80 border border-slate-800 p-2">
+            <span className="text-slate-400">THRESHOLD REQUIRED:</span>
+            <span className="font-bold text-slate-200">{threshold}% MIN</span>
+          </div>
+          <div className="flex justify-between rounded bg-slate-900/80 border border-slate-800 p-2">
+            <span className="text-slate-400">SAFETY TOLERANCE:</span>
+            <span className="font-bold text-[#00F0FF]">
+              +{(percentage - threshold).toFixed(1)}% MARGIN
+            </span>
+          </div>
+          <div className="flex justify-between rounded bg-slate-900/80 border border-slate-800 p-2">
+            <span className="text-slate-400">EXAM ELIGIBILITY:</span>
+            <span className="font-bold text-[#FF1E56]">PERMITTED</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-3 border-t border-slate-800/80 text-[10px] font-mono text-slate-500">
+        VERIFIED VIA EEE RFID ROLL-CALL SYSTEM // SYNCED
+      </div>
+    </div>
   );
 };

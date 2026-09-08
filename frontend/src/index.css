@@ -12,6 +12,7 @@
   }
 }
 
+/* Sci-Fi HUD কার্ড ফ্রেম */
 .hud-box {
   background: rgba(8, 16, 28, 0.75);
   backdrop-filter: blur(16px);
@@ -25,6 +26,7 @@
   box-shadow: 0 0 20px rgba(255, 30, 86, 0.1);
 }
 
+/* টেকনিক্যাল কর্নার ব্র্যাকেট */
 .corner-brackets {
   position: relative;
 }
@@ -53,6 +55,7 @@
   pointer-events: none;
 }
 
+/* সাইবার গ্রিড প্যাটার্ন */
 .cyber-grid-bg {
   background-image: 
     linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),

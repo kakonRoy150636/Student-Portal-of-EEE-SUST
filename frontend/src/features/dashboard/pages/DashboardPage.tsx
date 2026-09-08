@@ -7,8 +7,10 @@ import { Radio, Cpu, Bell } from 'lucide-react';
 export default function DashboardPage() {
   return (
     <div className="space-y-6 relative z-10">
+      {/* Sci-Fi HUD Hero Banner */}
       <div className="hud-box corner-brackets rounded-2xl p-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-full bg-gradient-to-l from-[#FF1E56]/10 via-[#00F0FF]/5 to-transparent pointer-events-none" />
+
         <div className="relative z-10 flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div className="space-y-2">
             <div className="flex items-center gap-3 font-mono text-xs">
@@ -20,6 +22,7 @@ export default function DashboardPage() {
                 TERM 3-1 • FALL 2026
               </span>
             </div>
+
             <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white font-mono uppercase">
               KAKON CHANDRO ROY
             </h1>
@@ -27,6 +30,7 @@ export default function DashboardPage() {
               DEPARTMENT OF ELECTRICAL & ELECTRONIC ENGINEERING // SUST
             </p>
           </div>
+
           <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4 font-mono text-xs space-y-2">
             <div className="flex items-center justify-between gap-4">
               <span className="text-slate-400 flex items-center gap-1.5">
@@ -45,7 +49,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
       <QuickStats />
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <TodayRoutine />
         <AttendanceGauge />

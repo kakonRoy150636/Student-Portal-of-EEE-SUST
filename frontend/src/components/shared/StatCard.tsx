@@ -1,5 +1,4 @@
 import React, { ReactNode } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 interface StatCardProps {
@@ -11,34 +10,55 @@ interface StatCardProps {
     isPositive: boolean;
   };
   subtitle?: string;
+  tag?: string;
+  accentColor?: 'crimson' | 'cyan';
 }
 
-export const StatCard = ({ title, value, icon, trend, subtitle }: StatCardProps) => (
-  <Card className="relative overflow-hidden border border-slate-200/80 bg-white/70 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5 dark:border-slate-800/80 dark:bg-slate-900/60">
-    {/* সূক্ষ্ম ব্যাকগ্রাউন্ড অ্যাকসেন্ট */}
-    <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-emerald-500/5 blur-2xl dark:bg-emerald-500/10" />
+export const StatCard = ({
+  title,
+  value,
+  icon,
+  trend,
+  subtitle,
+  tag = 'SYS.PARAM',
+  accentColor = 'cyan'
+}: StatCardProps) => {
+  const isCrimson = accentColor === 'crimson';
 
-    <CardContent className="p-5">
-      <div className="flex items-start justify-between">
+  return (
+    <div className="hud-box corner-brackets relative rounded-xl p-5 overflow-hidden">
+      <div className="flex items-center justify-between pb-3 text-[10px] font-mono tracking-widest text-slate-500 border-b border-slate-800/80">
+        <span className="flex items-center gap-1.5">
+          <span className={`h-1.5 w-1.5 rounded-full ${isCrimson ? 'bg-[#FF1E56]' : 'bg-[#00F0FF]'} animate-ping`} />
+          {tag}
+        </span>
+        <span className="text-slate-600">ID:0x7B2</span>
+      </div>
+
+      <div className="mt-4 flex items-start justify-between">
         <div className="space-y-1">
-          <p className="text-xs font-medium tracking-wider text-slate-500 dark:text-slate-400 uppercase">
+          <p className="text-[11px] font-mono uppercase tracking-wider text-slate-400">
             {title}
           </p>
-          <p className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50">
+          <p className="text-2xl font-black tracking-tight text-white font-mono">
             {value}
           </p>
         </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100/80 ring-1 ring-slate-200 text-slate-700 transition-colors dark:bg-slate-800/80 dark:ring-slate-700/60 dark:text-slate-200">
+        <div className={`flex h-11 w-11 items-center justify-center rounded-lg border ${
+          isCrimson 
+            ? 'border-[#FF1E56]/40 bg-[#FF1E56]/10 text-[#FF1E56]' 
+            : 'border-[#00F0FF]/40 bg-[#00F0FF]/10 text-[#00F0FF]'
+        }`}>
           {icon}
         </div>
       </div>
 
       {(trend || subtitle) && (
-        <div className="mt-4 flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800/60 text-xs">
+        <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-800/80 text-xs font-mono">
           {trend && (
             <span
-              className={`inline-flex items-center gap-0.5 font-semibold ${
-                trend.isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+              className={`inline-flex items-center gap-0.5 font-bold ${
+                trend.isPositive ? 'text-[#00F0FF]' : 'text-[#FF1E56]'
               }`}
             >
               {trend.isPositive ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
@@ -46,12 +66,12 @@ export const StatCard = ({ title, value, icon, trend, subtitle }: StatCardProps)
             </span>
           )}
           {subtitle && (
-            <span className="text-slate-400 dark:text-slate-500 truncate">
+            <span className="text-slate-500 text-[11px] truncate">
               {subtitle}
             </span>
           )}
         </div>
       )}
-    </CardContent>
-  </Card>
-);
+    </div>
+  );
+};

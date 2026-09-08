@@ -1,8 +1,16 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  LayoutDashboard, Calendar, Clock, CheckSquare,
-  BookOpen, FolderGit2, Briefcase, Bot, FlaskConical, Crosshair
+  LayoutDashboard,
+  Calendar,
+  Clock,
+  CheckSquare,
+  BookOpen,
+  FolderGit2,
+  Briefcase,
+  Bot,
+  FlaskConical,
+  Crosshair
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -37,6 +45,7 @@ export const Sidebar = () => {
   return (
     <aside className="w-64 border-r border-slate-800/80 bg-[#070D18]/90 backdrop-blur-xl p-4 flex flex-col justify-between hidden md:flex min-h-screen sticky top-0 z-20 font-mono">
       <div className="space-y-6">
+        {/* ব্র্যান্ডিং ও স্পিনিং রেটিকল */}
         <div className="flex items-center gap-3 px-2">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#FF1E56]/50 bg-[#FF1E56]/10 text-[#FF1E56] shadow-[0_0_15px_rgba(255,30,86,0.2)]">
             <Crosshair className="h-5 w-5 animate-[spin_20s_linear_infinite]" />
@@ -49,6 +58,7 @@ export const Sidebar = () => {
           </div>
         </div>
 
+        {/* সেকশন ভিত্তিক নেভিগেশন */}
         <nav className="space-y-5 font-mono">
           {navSections.map((sec) => (
             <div key={sec.group} className="space-y-1.5">
@@ -63,7 +73,7 @@ export const Sidebar = () => {
                     cn(
                       'group flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-lg transition-all',
                       isActive
-                        ? 'border-l-2 border-[#FF1E56] bg-gradient-to-r from-[#FF1E56]/15 to-transparent text-white font-bold'
+                        ? 'border-l-2 border-[#FF1E56] bg-gradient-to-r from-[#FF1E56]/15 to-transparent text-white font-bold shadow-[inset_0_0_10px_rgba(255,30,86,0.1)]'
                         : 'text-slate-400 hover:text-cyan-300 hover:bg-slate-900/60'
                     )
                   }
@@ -84,6 +94,7 @@ export const Sidebar = () => {
         </nav>
       </div>
 
+      {/* নিচের টেলিমেট্রি বক্স */}
       <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 font-mono text-[10px] space-y-1">
         <div className="flex items-center justify-between text-slate-400">
           <span>STATION:</span>

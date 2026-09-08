@@ -3,10 +3,12 @@ import React from 'react';
 export const DepartmentWatermark = () => {
   return (
     <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden flex items-center justify-center">
+      {/* গ্রিড ও অ্যাম্বিয়েন্ট গ্লো */}
       <div className="absolute inset-0 cyber-grid-bg opacity-70" />
       <div className="absolute top-1/4 left-1/4 h-[500px] w-[500px] rounded-full bg-cyan-500/[0.04] blur-[120px]" />
       <div className="absolute bottom-1/4 right-1/4 h-[500px] w-[500px] rounded-full bg-[#FF1E56]/[0.05] blur-[140px]" />
 
+      {/* EEE SUST ডিপার্টমেন্ট লোগো হলোগ্রাফিক ওয়াটারমার্ক */}
       <div className="relative flex items-center justify-center opacity-[0.06] select-none">
         <svg
           className="w-[700px] h-[700px] max-w-[90vw] text-cyan-400 animate-[spin_180s_linear_infinite]"
