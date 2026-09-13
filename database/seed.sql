@@ -1,8 +1,8 @@
 INSERT INTO users (id, identifier, email, password_hash, full_name, role) VALUES
-('00000000-0000-0000-0000-000000000001', 'admin', 'admin@sust.edu', '$2b$12$e8x5a34uK29oYx1e.Vz3A.w3yvVpWwX3fX/GzQ5.xZpQy8Z3A.w3y', 'System Administrator', 'super_admin'),
-('00000000-0000-0000-0000-000000000002', 'faculty01', 'tasfiq@sust.edu', '$2b$12$e8x5a34uK29oYx1e.Vz3A.w3yvVpWwX3fX/GzQ5.xZpQy8Z3A.w3y', 'Dr. Md. Tasfiq Rahman', 'teacher'),
-('00000000-0000-0000-0000-000000000003', '2021338001', 'kakon@student.sust.edu', '$2b$12$e8x5a34uK29oYx1e.Vz3A.w3yvVpWwX3fX/GzQ5.xZpQy8Z3A.w3y', 'Kakon Chandro Roy', 'student'),
-('00000000-0000-0000-0000-000000000004', '2021338037', 'tanij@student.sust.edu', '$2b$12$e8x5a34uK29oYx1e.Vz3A.w3yvVpWwX3fX/GzQ5.xZpQy8Z3A.w3y', 'Tanij Roy', 'cr')
+('00000000-0000-0000-0000-000000000001', 'admin', 'kakonroy150636@gmail.com', 'kakon123', 'System Administrator', 'super_admin'),
+('00000000-0000-0000-0000-000000000002', 'faculty01', 'tasfiq@sust.edu', 'tasfiq123', 'Md. Tasfiq Rahman', 'teacher'),
+('00000000-0000-0000-0000-000000000003', '2023338049', 'kakon@student.sust.edu', 'kakon123', 'Kakon Chandro Roy', 'student'),
+('00000000-0000-0000-0000-000000000004', '2023338050', 'tanij@student.sust.edu', 'tanij123', 'Tanij Roy', 'cr')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO semesters (id, title, is_active, start_date, end_date) VALUES
