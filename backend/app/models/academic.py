@@ -4,6 +4,31 @@ from sqlalchemy import String, Boolean, Numeric, Date, Time, Integer, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, UUIDPrimaryKeyMixin
+# backend/app/models/academic.py
+import uuid
+from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from sqlalchemy import ForeignKey, String
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+class CourseOfferingTeacher(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+  __tablename__ = "course_offering_teachers"
+
+  course_offering_id: Mapped[uuid.UUID] = mapped_column(
+      UUID(as_uuid=True),
+      ForeignKey("course_offerings.id", ondelete="CASCADE"),
+      nullable=False,
+      index=True,
+  )
+  teacher_id: Mapped[uuid.UUID] = mapped_column(
+      UUID(as_uuid=True),
+      ForeignKey("users.id", ondelete="CASCADE"),
+      nullable=False,
+      index=True,
+  )
+  role: Mapped[str] = mapped_column(
+      String(50), default="course_teacher"
+  )  # e.g., 'course_teacher', 'coordinator', 'lab_instructor'
 
 class Semester(Base):
     __tablename__ = "semesters"
@@ -48,3 +73,14 @@ class ClassSchedule(Base, UUIDPrimaryKeyMixin):
     day_of_week: Mapped[str] = mapped_column(String(15), nullable=False)
     start_time: Mapped[time] = mapped_column(Time, nullable=False)
     end_time: Mapped[time] = mapped_column(Time, nullable=False)
+
+class CourseOfferingTeacher(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "course_offering_teachers"
+
+    course_offering_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("course_offerings.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    teacher_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    role: Mapped[str] = mapped_column(String(50), default="course_teacher")

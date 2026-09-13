@@ -369,3 +369,12 @@ CREATE TABLE ai_generated_study_plans (
     plan_payload JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE course_offering_teachers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_offering_id UUID NOT NULL REFERENCES course_offerings(id) ON DELETE CASCADE,
+    teacher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(50) NOT NULL DEFAULT 'course_teacher',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(course_offering_id, teacher_id)
+);

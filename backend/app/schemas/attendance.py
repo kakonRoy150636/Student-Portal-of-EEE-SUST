@@ -1,13 +1,14 @@
-import uuid
-from datetime import date
-from pydantic import BaseModel
-
-class AttendanceRecordCreate(BaseModel):
+class AttendanceRecordUpdate(BaseModel):
     student_id: uuid.UUID
-    status: str = "present"
+    status: str
 
-class AttendanceSessionCreate(BaseModel):
-    course_offering_id: uuid.UUID
-    session_date: date
-    topic_discussed: str | None = None
-    records: list[AttendanceRecordCreate] = []
+class AttendanceUpdateSchema(BaseModel):
+    records: list[AttendanceRecordUpdate]
+
+class StudentAttendanceSummary(BaseModel):
+    student_id: uuid.UUID
+    full_name: str
+    total_sessions: int
+    present_count: int
+    percentage: float
+    below_threshold: bool

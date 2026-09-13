@@ -1,6 +1,6 @@
 import uuid
-from datetime import date
-from sqlalchemy import String, Date, Integer, ForeignKey
+from datetime import date, datetime, timedelta, timezone
+from sqlalchemy import String, Date, Integer, ForeignKey, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, UUIDPrimaryKeyMixin, TimestampMixin
@@ -12,6 +12,10 @@ class AttendanceSession(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     session_date: Mapped[date] = mapped_column(Date, default=date.today)
     taken_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     topic_discussed: Mapped[str] = mapped_column(String(255), nullable=True)
+    editable_until: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc) + timedelta(hours=48),
+    )
 
 class AttendanceRecord(Base):
     __tablename__ = "attendance_records"
