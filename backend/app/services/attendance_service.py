@@ -23,8 +23,8 @@ class AttendanceService:
             taken_by=taken_by,
             topic_discussed=topic,
         )
-        self.db = await self.repo.create(session)
-        await self.repo.add_records(session.id, [r.dict() for r in records])
+        await self.repo.create(session)
+        await self.repo.add_records(session.id, [r.model_dump() for r in records])
         await self.db.commit()
         return {"session_id": session.id, "message": "Attendance recorded successfully"}
 

@@ -6,6 +6,7 @@ import { ProtectedRoute } from './ProtectedRoute';
 import { ErrorBoundary } from './ErrorBoundary';
 
 const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'));
+const RegisterPage = lazy(() => import('@/features/auth/pages/RegisterPage'));
 const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPage'));
 const SchedulePage = lazy(() => import('@/features/schedule/pages/SchedulePage'));
 const RoomBookingPage = lazy(() => import('@/features/room-booking/pages/RoomBookingPage'));
@@ -26,6 +27,7 @@ export const router = createBrowserRouter([
     errorElement: <ErrorBoundary />,
     children: [
       { path: 'login', element: <Suspense fallback={<Fallback />}><LoginPage /></Suspense> },
+      { path: 'register', element: <Suspense fallback={<Fallback />}><RegisterPage /></Suspense> },
       { index: true, element: <Navigate to="/auth/login" replace /> }
     ]
   },

@@ -25,6 +25,8 @@ CREATE TABLE users (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_key VARCHAR(512);
+
 CREATE TABLE profiles_student (
     user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     session_year VARCHAR(9) NOT NULL,
@@ -134,6 +136,8 @@ CREATE TABLE room_reservations (
 
 -- 3. Attendance
 CREATE TABLE attendance_sessions (
+    ALTER TABLE attendance_sessions
+    ADD COLUMN editable_until TIMESTAMPTZ NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '48 hours');
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     course_offering_id UUID NOT NULL REFERENCES course_offerings(id) ON DELETE CASCADE,
     session_date DATE NOT NULL DEFAULT CURRENT_DATE,
