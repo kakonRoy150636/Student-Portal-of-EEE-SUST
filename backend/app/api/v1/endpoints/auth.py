@@ -1,14 +1,18 @@
 import uuid
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Response, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.services.auth_service import AuthService
 from app.schemas.auth import (
-    AuthSessionResponse, LoginRequest, PendingApprovalUser, RegisterResponse,
-    StudentRegisterRequest, TeacherRegisterRequest, UserResponse,
+    LoginRequest, AuthSessionResponse, UserResponse, TeacherRegisterRequest,
+    StudentRegisterRequest, RegisterResponse, PendingApprovalUser,
+    AvatarUploadResponse,
 )
-from app.api.dependencies import RequireRole, get_current_user
+from app.api.dependencies import get_current_user, RequireRole
 from app.models.user import User, UserRole
+from app.core.config import settings
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -37,6 +41,28 @@ async def register_teacher(payload: TeacherRegisterRequest, db: AsyncSession = D
 @router.post("/register/student", response_model=RegisterResponse, status_code=201)
 async def register_student(payload: StudentRegisterRequest, db: AsyncSession = Depends(get_db)):
     return await AuthService(db).register_student(payload)
+
+
+@router.post("/avatar-upload", response_model=AvatarUploadResponse)
+async def avatar_upload(filename: str, content_type: str):
+    if not content_type.startswith("image/"):
+        raise HTTPException(status_code=415, detail="Only image uploads are supported.")
+    file_key = f"avatars/{uuid.uuid4()}-{filename.replace('/', '_')}"
+    try:
+        client = boto3.client(
+            "s3",
+            endpoint_url=settings.S3_ENDPOINT_URL,
+            aws_access_key_id=settings.S3_ACCESS_KEY,
+            aws_secret_access_key=settings.S3_SECRET_KEY,
+        )
+        upload_url = client.generate_presigned_url(
+            "put_object",
+            Params={"Bucket": settings.S3_BUCKET_NAME, "Key": file_key, "ContentType": content_type},
+            ExpiresIn=600,
+        )
+    except (BotoCoreError, ClientError) as exc:
+        raise HTTPException(status_code=503, detail="Avatar storage is unavailable.") from exc
+    return AvatarUploadResponse(file_key=file_key, upload_url=upload_url)
 
 
 @router.get("/admin/pending-approvals", response_model=list[PendingApprovalUser])

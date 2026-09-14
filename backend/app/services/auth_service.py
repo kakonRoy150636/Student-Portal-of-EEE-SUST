@@ -1,20 +1,14 @@
 import uuid
-
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.academic import CourseEnrollment
-from app.models.user import FacultyProfile, StudentProfile, User, UserRole
 from app.repositories.user_repository import UserRepository
-from app.core.security import create_access_token, generate_random_token, get_password_hash, verify_password
-from app.core.exceptions import NotFoundException, ResourceConflictException, UnauthorizedException
+from app.core.security import verify_password, get_password_hash, create_access_token, generate_random_token
+from app.core.exceptions import UnauthorizedException, ResourceConflictException, NotFoundException
 from app.schemas.auth import (
-    AuthSessionResponse,
-    LoginRequest,
-    RegisterResponse,
-    StudentRegisterRequest,
-    TeacherRegisterRequest,
-    TokenResponse,
-    UserResponse,
+    LoginRequest, AuthSessionResponse, TokenResponse, UserResponse,
+    TeacherRegisterRequest, StudentRegisterRequest, RegisterResponse,
 )
+from app.models.user import User, UserRole, StudentProfile, FacultyProfile
+from app.models.academic import CourseEnrollment
 
 class AuthService:
     def __init__(self, db: AsyncSession):
@@ -35,18 +29,18 @@ class AuthService:
         return AuthSessionResponse(user=UserResponse.model_validate(user), tokens=TokenResponse(access_token=token)), refresh
 
     async def register_teacher(self, dto: TeacherRegisterRequest) -> RegisterResponse:
-        if await self.repo.get_by_email(str(dto.email)):
+        if await self.repo.get_by_email(dto.email):
             raise ResourceConflictException("Email already in use.")
 
-        identifier = await self._generate_teacher_identifier()
+        identifier = f"faculty-{uuid.uuid4().hex[:8]}"
         user = User(
             identifier=identifier,
-            email=str(dto.email),
+            email=dto.email,
             full_name=dto.full_name,
+            avatar_key=dto.avatar_key,
             password_hash=get_password_hash(dto.password),
             role=UserRole.TEACHER,
             is_active=False,
-            avatar_key=dto.avatar_key,
         )
         await self.repo.create(user)
         self.db.add(FacultyProfile(user_id=user.id, designation="Not set"))
@@ -57,21 +51,20 @@ class AuthService:
         )
 
     async def register_student(self, dto: StudentRegisterRequest) -> RegisterResponse:
-        if await self.repo.get_by_email(str(dto.email)):
+        if await self.repo.get_by_email(dto.email):
             raise ResourceConflictException("Email already in use.")
         if await self.repo.get_by_identifier(dto.identifier):
             raise ResourceConflictException("Student ID already in use.")
 
         role = UserRole.CR if dto.role == "cr" else UserRole.STUDENT
-        is_active = role == UserRole.STUDENT
         user = User(
             identifier=dto.identifier,
-            email=str(dto.email),
+            email=dto.email,
             full_name=dto.full_name,
+            avatar_key=dto.avatar_key,
             password_hash=get_password_hash(dto.password),
             role=role,
-            is_active=is_active,
-            avatar_key=dto.avatar_key,
+            is_active=role == UserRole.STUDENT,
         )
         await self.repo.create(user)
         self.db.add(StudentProfile(
@@ -86,14 +79,13 @@ class AuthService:
                 status=selection.enrollment_type,
             ))
         await self.db.commit()
-
+        requires_approval = role == UserRole.CR
         return RegisterResponse(
             message=(
                 "Registered. Awaiting admin approval before you can log in as CR."
-                if role == UserRole.CR
-                else "Registered successfully. You can log in now."
+                if requires_approval else "Registered successfully. You can log in now."
             ),
-            requires_approval=role == UserRole.CR,
+            requires_approval=requires_approval,
         )
 
     async def list_pending_approvals(self):
@@ -106,9 +98,3 @@ class AuthService:
         user.is_active = True
         await self.db.commit()
         return {"message": f"{user.full_name} approved.", "user_id": user.id}
-
-    async def _generate_teacher_identifier(self) -> str:
-        while True:
-            identifier = f"faculty-{uuid.uuid4().hex[:8]}"
-            if not await self.repo.get_by_identifier(identifier):
-                return identifier

@@ -10,7 +10,7 @@ export default function LoginPage() {
         <p className="text-xs text-slate-500">Sign in with institutional credentials</p>
       </div>
       <LoginForm />
-      <p className="text-center text-xs text-slate-500">Need an account? <Link className="font-semibold text-emerald-600 hover:underline" to="/auth/register">Register here</Link></p>
+      <p className="text-center text-xs text-slate-500">New here? <Link className="text-emerald-500 hover:underline" to="/auth/register">Create an account</Link></p>
     </div>
   );
 }
