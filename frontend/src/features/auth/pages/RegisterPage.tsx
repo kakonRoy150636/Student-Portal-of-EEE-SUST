@@ -20,7 +20,8 @@ export default function RegisterPage() {
   const uploadAvatar = async () => {
     if (!avatar) return undefined;
     const { data } = await api.post('/auth/avatar-upload', null, { params: { filename: avatar.name, content_type: avatar.type } });
-    await fetch(data.upload_url, { method: 'PUT', headers: { 'Content-Type': avatar.type }, body: avatar });
+    const uploadResponse = await fetch(data.upload_url, { method: 'PUT', headers: { 'Content-Type': avatar.type }, body: avatar });
+    if (!uploadResponse.ok) throw new Error('Avatar upload failed. Please try again or continue without an image.');
     return data.file_key as string;
   };
 
@@ -38,7 +39,7 @@ export default function RegisterPage() {
       setMessage(data.message);
       if (!data.requires_approval) window.setTimeout(() => navigate('/auth/login'), 1200);
     } catch (requestError: any) {
-      setError(requestError?.response?.data?.detail || 'Registration failed. Please check your details and try again.');
+      setError(requestError?.response?.data?.detail || requestError?.message || 'Registration failed. Please check your details and try again.');
     } finally {
       setSubmitting(false);
     }

@@ -20,7 +20,11 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(150), nullable=False)
     avatar_key: Mapped[Optional[str]] = mapped_column(String(512))
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="user_role"), default=UserRole.STUDENT, index=True)
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole, name="user_role", values_callable=lambda roles: [role.value for role in roles]),
+        default=UserRole.STUDENT,
+        index=True,
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     student_profile: Mapped[Optional["StudentProfile"]] = relationship("StudentProfile", back_populates="user", uselist=False)

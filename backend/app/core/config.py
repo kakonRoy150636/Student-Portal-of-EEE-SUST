@@ -14,12 +14,17 @@ class Settings(BaseSettings):
     DB_ECHO: bool = False
 
     REDIS_URL: str = "redis://redis:6379/0"
-    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:3000",
+    ]
 
     GEMINI_API_KEY: str = ""
     FIREBASE_CREDENTIALS_PATH: str = "./firebase-service-account.json"
 
     S3_ENDPOINT_URL: str = "http://minio:9000"
+    S3_PUBLIC_ENDPOINT_URL: str = "http://localhost:9000"
     S3_ACCESS_KEY: str = "minioadmin"
     S3_SECRET_KEY: str = "minioadmin"
     S3_BUCKET_NAME: str = "sust-eee-resources"
