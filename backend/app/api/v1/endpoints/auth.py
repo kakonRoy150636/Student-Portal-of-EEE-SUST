@@ -1,5 +1,6 @@
 import uuid
-from fastapi import APIRouter, Depends, Response, HTTPException
+import jwt
+from fastapi import APIRouter, Depends, Response, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.services.auth_service import AuthService
@@ -11,25 +12,62 @@ from app.schemas.auth import (
 from app.api.dependencies import get_current_user, RequireRole
 from app.models.user import User, UserRole
 from app.core.config import settings
+from app.core.exceptions import UnauthorizedException
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
+REFRESH_COOKIE = "refresh_token"
+REFRESH_COOKIE_PATH = "/api/v1/auth"
+
+
+def _set_refresh_cookie(response: Response, value: str) -> None:
+    response.set_cookie(
+        key=REFRESH_COOKIE,
+        value=value,
+        httponly=True,
+        secure=settings.ENVIRONMENT == "production",
+        samesite="lax",
+        path=REFRESH_COOKIE_PATH,
+    )
+
+
 @router.post("/login", response_model=AuthSessionResponse)
 async def login(payload: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
     service = AuthService(db)
     session_data, refresh_token = await service.authenticate(payload)
-    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, path="/api/v1/auth")
+    _set_refresh_cookie(response, refresh_token)
     return session_data
+
+
+@router.post("/refresh", response_model=AuthSessionResponse)
+async def refresh(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    refresh_token = request.cookies.get(REFRESH_COOKIE)
+    if not refresh_token:
+        raise UnauthorizedException("No refresh token provided.")
+    access, new_refresh = await AuthService(db).refresh_access_token(refresh_token)
+    _set_refresh_cookie(response, new_refresh)
+    # Keep the shape consistent with login: user must be resolved for the response model.
+    payload = jwt.decode(access, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    user = await AuthService(db).repo.get_by_id(uuid.UUID(payload["sub"]))
+    from app.schemas.auth import TokenResponse
+    return AuthSessionResponse(
+        user=UserResponse.model_validate(user),
+        tokens=TokenResponse(access_token=access),
+    )
+
 
 @router.get("/me", response_model=UserResponse)
 async def me(user: User = Depends(get_current_user)):
     return user
 
+
 @router.post("/logout")
-async def logout(response: Response):
-    response.delete_cookie(key="refresh_token", path="/api/v1/auth")
+async def logout(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    refresh_token = request.cookies.get(REFRESH_COOKIE)
+    await AuthService(db).revoke_token(refresh_token)
+    response.delete_cookie(key=REFRESH_COOKIE, path=REFRESH_COOKIE_PATH)
     return {"message": "Logged out"}
 
 
@@ -44,9 +82,11 @@ async def register_student(payload: StudentRegisterRequest, db: AsyncSession = D
 
 
 @router.post("/avatar-upload", response_model=AvatarUploadResponse)
-async def avatar_upload(filename: str, content_type: str):
+async def avatar_upload(filename: str, content_type: str, size_hint: int = 5 * 1024 * 1024):
     if not content_type.startswith("image/"):
         raise HTTPException(status_code=415, detail="Only image uploads are supported.")
+    if size_hint > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Avatar exceeds maximum size (10 MB).")
     file_key = f"avatars/{uuid.uuid4()}-{filename.replace('/', '_')}"
     try:
         client = boto3.client(
@@ -57,8 +97,13 @@ async def avatar_upload(filename: str, content_type: str):
         )
         upload_url = client.generate_presigned_url(
             "put_object",
-            Params={"Bucket": settings.S3_BUCKET_NAME, "Key": file_key, "ContentType": content_type},
-            ExpiresIn=600,
+            Params={
+                "Bucket": settings.S3_BUCKET_NAME,
+                "Key": file_key,
+                "ContentType": content_type,
+                "ContentLengthRange": (0, size_hint),
+            },
+            ExpiresIn=300,
         )
     except (BotoCoreError, ClientError) as exc:
         raise HTTPException(status_code=503, detail="Avatar storage is unavailable.") from exc

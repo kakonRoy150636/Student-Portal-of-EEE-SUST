@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
-from app.models.attendance import AttendanceSession
+from app.models.attendance import AttendanceSession, AttendanceRecord
 from app.models.academic import CourseEnrollment
+from app.models.user import User
 from app.repositories.attendance_repository import AttendanceRepository
 from sqlalchemy import select
 
@@ -14,7 +15,36 @@ class AttendanceService:
         self.repo = AttendanceRepository(db)
 
     async def get_student_summary(self, student_id):
-        return {"total_classes": 48, "attended": 42, "percentage": 87.5}
+        """Aggregate attendance across all enrolled courses for a student."""
+        stmt = (
+            select(
+                CourseEnrollment.course_offering_id,
+                AttendanceSession.id.label("session_id"),
+                AttendanceRecord.status,
+            )
+            .join(AttendanceSession, AttendanceSession.course_offering_id == CourseEnrollment.course_offering_id)
+            .join(AttendanceRecord, AttendanceRecord.session_id == AttendanceSession.id)
+            .where(CourseEnrollment.student_id == student_id)
+        )
+        rows = (await self.db.execute(stmt)).all()
+
+        per_course = {}
+        for offering_id, session_id, status in rows:
+            per_course.setdefault(offering_id, {"present": 0, "total": 0})
+            per_course[offering_id]["total"] += 1
+            if status in ("present", "late"):
+                per_course[offering_id]["present"] += 1
+
+        total = len(rows)
+        attended = sum(1 for _, _, status in rows if status in ("present", "late"))
+        percentage = round(attended / total * 100, 2) if total else 0.0
+        return {
+            "total_classes": total,
+            "attended": attended,
+            "percentage": percentage,
+            "below_threshold": percentage < THRESHOLD_PERCENT if total else False,
+            "per_course": per_course,
+        }
 
     async def create_session(self, course_offering_id, session_date, topic, taken_by, records):
         session = AttendanceSession(
@@ -32,17 +62,20 @@ class AttendanceService:
         total_sessions = await self.repo.get_session_count(course_offering_id)
         present_counts = await self.repo.get_present_counts(course_offering_id)
 
-        stmt = select(CourseEnrollment.student_id).where(
-            CourseEnrollment.course_offering_id == course_offering_id
+        stmt = (
+            select(CourseEnrollment.student_id, User.full_name)
+            .join(User, User.id == CourseEnrollment.student_id)
+            .where(CourseEnrollment.course_offering_id == course_offering_id)
         )
-        student_ids = [row[0] for row in (await self.db.execute(stmt)).all()]
+        students = (await self.db.execute(stmt)).all()
 
         summary = []
-        for sid in student_ids:
+        for sid, full_name in students:
             present = present_counts.get(sid, 0)
             pct = round((present / total_sessions * 100), 2) if total_sessions else 0.0
             summary.append({
                 "student_id": sid,
+                "full_name": full_name,
                 "total_sessions": total_sessions,
                 "present_count": present,
                 "percentage": pct,
@@ -57,7 +90,6 @@ class AttendanceService:
         if datetime.now(timezone.utc) > session.editable_until:
             raise HTTPException(status_code=400, detail="Correction window has expired.")
 
-        from app.models.attendance import AttendanceRecord
         for r in records:
             stmt = select(AttendanceRecord).where(
                 AttendanceRecord.session_id == session_id,
