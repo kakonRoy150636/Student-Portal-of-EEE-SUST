@@ -4,7 +4,7 @@ import { api } from '@/lib/axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-type Role = 'teacher' | 'student' | 'cr';
+type Role = 'teacher' | 'student' | 'cr' | 'er';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -34,7 +34,9 @@ export default function RegisterPage() {
       const avatar_key = await uploadAvatar();
       const payload = { ...form, ...(avatar_key ? { avatar_key } : {}) };
       const endpoint = role === 'teacher' ? '/auth/register/teacher' : '/auth/register/student';
-      const body = role === 'teacher' ? { full_name: payload.full_name, email: payload.email, password: payload.password, avatar_key } : { ...payload, role, course_selections: [] };
+      const body = role === 'teacher'
+        ? { full_name: payload.full_name, email: payload.email, password: payload.password, avatar_key }
+        : { ...payload, role: role === 'er' ? 'er' : role, course_selections: [] };
       const { data } = await api.post(endpoint, body);
       setMessage(data.message);
       if (!data.requires_approval) window.setTimeout(() => navigate('/auth/login'), 1200);
@@ -50,12 +52,12 @@ export default function RegisterPage() {
       <div>
         <p className="text-xs uppercase tracking-[0.2em] text-emerald-500">New account</p>
         <h1 className="text-2xl font-bold">Join the EEE Portal</h1>
-        <p className="text-xs text-slate-500 mt-1">Teacher and CR accounts require administrator approval.</p>
+        <p className="text-xs text-slate-500 mt-1">Teacher, CR and ER accounts require administrator approval.</p>
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        {(['student', 'cr', 'teacher'] as Role[]).map((option) => (
+      <div className="grid grid-cols-4 gap-2">
+        {(['student', 'cr', 'teacher', 'er'] as Role[]).map((option) => (
           <Button key={option} type="button" variant={role === option ? 'default' : 'outline'} size="sm" onClick={() => setRole(option)}>
-            {option === 'cr' ? 'Student / CR' : option[0].toUpperCase() + option.slice(1)}
+            {option === 'cr' ? 'CR' : option === 'er' ? 'ER' : option[0].toUpperCase() + option.slice(1)}
           </Button>
         ))}
       </div>

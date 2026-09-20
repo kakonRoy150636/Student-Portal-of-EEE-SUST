@@ -47,7 +47,7 @@ class StudentRegisterRequest(BaseModel):
     session_year: str
     current_term: str
     avatar_key: str | None = None
-    role: Literal["student", "cr"] = "student"
+    role: Literal["student", "cr", "er"] = "student"
     course_selections: list[CourseSelection] = Field(default_factory=list)
 
 

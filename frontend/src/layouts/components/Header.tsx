@@ -37,11 +37,11 @@ export const Header = () => {
         {/* ইউজার আইডেন্টিটি */}
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#00F0FF]/40 bg-[#00F0FF]/10 text-xs font-bold text-[#00F0FF]">
-            {user?.full_name ? user.full_name.charAt(0) : 'K'}
+            {user?.full_name ? user.full_name.charAt(0).toUpperCase() : '?'}
           </div>
           <div className="hidden text-left sm:block">
-            <p className="text-xs font-bold text-white uppercase">{user?.full_name || 'Kakon Chandro Roy'}</p>
-            <p className="text-[10px] text-slate-500">ID: {user?.identifier || '2021338001'}</p>
+            <p className="text-xs font-bold text-white uppercase">{user?.full_name || 'Guest'}</p>
+            <p className="text-[10px] text-slate-500">{user?.role?.replace('_', ' ').toUpperCase() || 'USER'} · {user?.identifier || '—'}</p>
           </div>
         </div>
 

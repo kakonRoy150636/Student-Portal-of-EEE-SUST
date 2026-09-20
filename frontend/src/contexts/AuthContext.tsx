@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, UserRole, LoginCredentials } from '@/types/auth';
 import { api, setAccessToken } from '@/lib/axios';
 
@@ -8,35 +8,48 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (creds: LoginCredentials) => Promise<void>;
   logout: () => Promise<void>;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const TOKEN_KEY = 'access_token';
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>({
-    id: "00000000-0000-0000-0000-000000000003",
-    identifier: "2023338049",
-    email: "kakon@student.sust.edu",
-    full_name: "Kakon Chandro Roy",
-    role: UserRole.STUDENT,
-    is_active: true
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (token) {
+      setAccessToken(token);
+      api.get('/auth/me').then(({ data }) => setUser(data)).catch(() => {
+        localStorage.removeItem(TOKEN_KEY);
+        setAccessToken(null);
+      }).finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, []);
 
   const login = async (creds: LoginCredentials) => {
     const { data } = await api.post('/auth/login', creds);
-    setAccessToken(data.tokens.access_token);
+    const token = data.tokens.access_token;
+    localStorage.setItem(TOKEN_KEY, token);
+    setAccessToken(token);
     setUser(data.user);
   };
 
   const logout = async () => {
     try { await api.post('/auth/logout'); } finally {
+      localStorage.removeItem(TOKEN_KEY);
       setAccessToken(null);
       setUser(null);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, role: user?.role ?? null, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, role: user?.role ?? null, isAuthenticated: !!user, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

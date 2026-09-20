@@ -55,7 +55,7 @@ class AuthService:
         if not user or not verify_password(dto.password, user.password_hash):
             raise UnauthorizedException("Invalid institutional identifier or password.")
         if not user.is_active:
-            if user.role in (UserRole.TEACHER, UserRole.CR):
+            if user.role in (UserRole.TEACHER, UserRole.CR, UserRole.LAB_ASSISTANT):
                 raise UnauthorizedException("Your account is awaiting admin approval.")
             raise UnauthorizedException("User account is inactive.")
 
@@ -141,7 +141,12 @@ class AuthService:
         if await self.repo.get_by_identifier(dto.identifier):
             raise ResourceConflictException("Student ID already in use.")
 
-        role = UserRole.CR if dto.role == "cr" else UserRole.STUDENT
+        if dto.role == "cr":
+            role = UserRole.CR
+        elif dto.role == "er":
+            role = UserRole.LAB_ASSISTANT
+        else:
+            role = UserRole.STUDENT
         user = User(
             identifier=dto.identifier,
             email=dto.email,
@@ -149,7 +154,7 @@ class AuthService:
             avatar_key=dto.avatar_key,
             password_hash=get_password_hash(dto.password),
             role=role,
-            is_active=role == UserRole.STUDENT,
+            is_active=role == UserRole.STUDENT,  # CR and ER require admin approval
         )
         await self.repo.create(user)
         self.db.add(StudentProfile(
@@ -164,12 +169,15 @@ class AuthService:
                 status=selection.enrollment_type,
             ))
         await self.db.commit()
-        requires_approval = role == UserRole.CR
+        requires_approval = role in (UserRole.CR, UserRole.LAB_ASSISTANT)
+        if role == UserRole.CR:
+            message = "Registered. Awaiting admin approval before you can log in as CR."
+        elif role == UserRole.LAB_ASSISTANT:
+            message = "Registered. Awaiting admin approval before you can log in as ER."
+        else:
+            message = "Registered successfully. You can log in now."
         return RegisterResponse(
-            message=(
-                "Registered. Awaiting admin approval before you can log in as CR."
-                if requires_approval else "Registered successfully. You can log in now."
-            ),
+            message=message,
             requires_approval=requires_approval,
         )
 

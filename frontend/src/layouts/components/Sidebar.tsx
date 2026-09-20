@@ -10,37 +10,57 @@ import {
   Briefcase,
   Bot,
   FlaskConical,
-  Crosshair
+  Crosshair,
+  Shield
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { UserRole } from '@/types/auth';
+
+type NavItem = { name: string; path: string; icon: React.ElementType; isAi?: boolean; roles?: UserRole[] };
 
 export const Sidebar = () => {
-  const navSections = [
+  const { role } = useAuth();
+
+  const allSections: { group: string; items: NavItem[] }[] = [
     {
       group: '01 // TELEMETRY',
       items: [
         { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-        { name: 'Schedule', path: '/schedule', icon: Calendar },
-        { name: 'Attendance', path: '/attendance', icon: CheckSquare },
+        { name: 'Schedule', path: '/schedule', icon: Calendar, roles: [UserRole.STUDENT, UserRole.CR, UserRole.TEACHER] },
+        { name: 'Attendance', path: '/attendance', icon: CheckSquare, roles: [UserRole.STUDENT, UserRole.CR, UserRole.TEACHER] },
       ]
     },
     {
       group: '02 // ACADEMICS',
       items: [
-        { name: 'Lab Management', path: '/labs', icon: FlaskConical },
-        { name: 'Room Booking', path: '/room-booking', icon: Clock },
+        { name: 'Lab Management', path: '/labs', icon: FlaskConical, roles: [UserRole.TEACHER, UserRole.LAB_ASSISTANT, UserRole.SUPER_ADMIN] },
+        { name: 'Room Booking', path: '/room-booking', icon: Clock, roles: [UserRole.STUDENT, UserRole.CR, UserRole.TEACHER, UserRole.SUPER_ADMIN] },
         { name: 'Resources', path: '/resources', icon: BookOpen },
-        { name: 'Project Hub', path: '/projects', icon: FolderGit2 },
+        { name: 'Project Hub', path: '/projects', icon: FolderGit2, roles: [UserRole.STUDENT, UserRole.CR, UserRole.TEACHER] },
       ]
     },
     {
       group: '03 // INTELLIGENCE',
       items: [
-        { name: 'Career Portal', path: '/career', icon: Briefcase },
+        { name: 'Career Portal', path: '/career', icon: Briefcase, roles: [UserRole.STUDENT, UserRole.CR] },
         { name: 'AI Assistant', path: '/ai', icon: Bot, isAi: true },
+      ]
+    },
+    {
+      group: '04 // CONTROL',
+      items: [
+        { name: 'Admin Panel', path: '/admin', icon: Shield, roles: [UserRole.SUPER_ADMIN] },
       ]
     }
   ];
+
+  const navSections = allSections
+    .map((sec) => ({
+      ...sec,
+      items: sec.items.filter((i) => !i.roles || (role && i.roles.includes(role)))
+    }))
+    .filter((sec) => sec.items.length > 0);
 
   return (
     <aside className="w-64 border-r border-slate-800/80 bg-[#070D18]/90 backdrop-blur-xl p-4 flex flex-col justify-between hidden md:flex min-h-screen sticky top-0 z-20 font-mono">
