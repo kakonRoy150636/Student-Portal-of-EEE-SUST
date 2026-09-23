@@ -1,9 +1,16 @@
+from __future__ import annotations
+
 import enum
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
 from sqlalchemy import String, Boolean, Enum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.models.base import Base, UUIDPrimaryKeyMixin, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.alumni import AlumniProfile
 
 class UserRole(str, enum.Enum):
     SUPER_ADMIN = "super_admin"
@@ -11,6 +18,7 @@ class UserRole(str, enum.Enum):
     CR = "cr"
     STUDENT = "student"
     LAB_ASSISTANT = "lab_assistant"
+    ALUMNI = "alumni"
 
 class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "users"
@@ -29,6 +37,7 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     student_profile: Mapped[Optional["StudentProfile"]] = relationship("StudentProfile", back_populates="user", uselist=False)
     faculty_profile: Mapped[Optional["FacultyProfile"]] = relationship("FacultyProfile", back_populates="user", uselist=False)
+    alumni_profile: Mapped[Optional["AlumniProfile"]] = relationship("AlumniProfile", back_populates="user", uselist=False)
 
 class StudentProfile(Base):
     __tablename__ = "profiles_student"
