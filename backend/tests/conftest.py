@@ -23,6 +23,7 @@ os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("SECRET_KEY", "test_secret_key_for_unit_tests_only_not_used_in_prod")
 
 import app.models  # noqa: F401,E402  (import for side effect: registers all mappers)
+from app.core import rate_limit  # noqa: E402
 from app.core.database import get_db  # noqa: E402
 from app.core.security import get_password_hash  # noqa: E402
 from app.main import app  # noqa: E402  (must come after `import app.models`:
@@ -148,6 +149,31 @@ def _make_client(factory):
 
     app.dependency_overrides[get_db] = _override_get_db
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+
+
+@pytest.fixture(autouse=True)
+def reset_throttle_redis_client():
+    """Drop the module-global Redis client between tests.
+
+    ``app/core/rate_limit.py`` memoises one ``redis.asyncio.Redis`` client in
+    a module global and reuses it forever. An asyncio client is bound to the
+    event loop that first used it, but pytest-asyncio gives every test a fresh
+    loop. So the first test that performs a *successful* login leaves behind
+    a client whose connection pool is bound to a now-closed loop, and the next
+    test to touch the throttle fails with "Event loop is closed" -- surfacing
+    as a RuntimeError from a BaseHTTPMiddleware task rather than as a login
+    failure. That made the result depend on test ordering: 6 of the 7
+    pre-existing failures were this, and which tests failed rotated between
+    runs.
+
+    Clearing the global before each test gives the throttle a client that
+    belongs to the current loop. It changes no production behaviour, and
+    ``rate_limit`` still fails open when Redis is unreachable, so the suite
+    stays dependency-free.
+    """
+    rate_limit._redis = None
+    yield
+    rate_limit._redis = None
 
 
 @pytest_asyncio.fixture

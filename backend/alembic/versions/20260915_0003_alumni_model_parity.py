@@ -111,6 +111,9 @@ def upgrade() -> None:
         "ALTER TABLE alumni_profiles ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT FALSE"
     )
     op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_alumni_profiles_is_visible ON alumni_profiles (is_visible)"
+    )
+    op.execute(
         """
         DO $$
         BEGIN

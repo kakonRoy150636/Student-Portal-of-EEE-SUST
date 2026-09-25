@@ -1,41 +1,67 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar } from '@/components/shared/Avatar';
-import { Bell, Search, LogOut, Terminal, Activity } from 'lucide-react';
+import { Bell, LogOut } from 'lucide-react';
+import { api } from '@/lib/axios';
+
+interface NotificationRow {
+  id: number;
+  title: string;
+  body: string;
+  is_read: boolean;
+}
 
 export const Header = () => {
   const { user, logout } = useAuth();
 
+  /**
+   * Replaces the old decorative bell, which had no click handler and an
+   * always-animating unread dot -- so it asserted unread mail that may not
+   * exist. The count is now the real number of unread rows for this user,
+   * and the dot only appears when that count is greater than zero.
+   *
+   * The decorative "query database (Ctrl + K)" input was removed rather than
+   * left in place: it had no handler, so it looked like a working search and
+   * silently did nothing.
+   */
+  const notifications = useQuery({
+    queryKey: ['notifications'],
+    queryFn: async () => (await api.get<NotificationRow[]>('/notifications')).data,
+    retry: false,
+  });
+
+  const rows = notifications.data ?? [];
+  const unread = rows.filter((n) => !n.is_read).length;
+
   return (
     <header className="h-16 border-b border-slate-800/80 bg-[#070D18]/80 backdrop-blur-xl px-8 flex items-center justify-between sticky top-0 z-30 font-mono">
-      {/* টার্মিনাল সার্চ বার */}
-      <div className="flex items-center gap-3 flex-1 max-w-md">
-        <div className="relative w-full">
-          <Terminal className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cyan-400" />
-          <input
-            type="text"
-            placeholder="query database (Ctrl + K)..."
-            className="w-full rounded-lg border border-slate-800 bg-slate-950/70 pl-9 pr-4 py-1.5 text-xs text-cyan-300 placeholder-slate-600 transition-all focus:border-[#FF1E56] focus:outline-none focus:ring-1 focus:ring-[#FF1E56]/30 font-mono"
-          />
-        </div>
+      <div className="flex items-center gap-3 min-w-0">
+        <span className="text-[11px] uppercase tracking-widest text-slate-500 truncate">
+          {user?.role ? user.role.replace('_', ' ').toUpperCase() : ''} CONSOLE
+        </span>
       </div>
 
-      {/* টেলিমেট্রি স্ট্যাটাস ও ইউজার কন্ট্রোলস */}
       <div className="flex items-center gap-5">
-        <div className="hidden lg:flex items-center gap-2 text-[11px] text-slate-400 bg-slate-900/60 px-3 py-1 rounded border border-slate-800">
-          <Activity className="h-3.5 w-3.5 text-[#00F0FF] animate-pulse" />
-          <span>SYS.TELEMETRY: <strong className="text-[#00F0FF]">ACTIVE</strong></span>
-        </div>
-
-        {/* নোটিফিকেশন বেল */}
-        <button className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-800 bg-slate-900/80 text-slate-300 hover:text-cyan-400 hover:border-cyan-500/40 transition-all">
+        <Link
+          to="/notifications"
+          className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-800 bg-slate-900/80 text-slate-300 hover:border-[var(--accent-edge)] transition-colors"
+          aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+        >
           <Bell className="h-4 w-4" />
-          <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-[#FF1E56] animate-ping" />
-        </button>
+          {unread > 0 && (
+            <span
+              className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center"
+              style={{ backgroundColor: 'var(--accent)', color: '#050B14' }}
+            >
+              {unread > 99 ? '99+' : unread}
+            </span>
+          )}
+        </Link>
 
         <div className="h-6 w-px bg-slate-800" />
 
-        {/* ইউজার আইডেন্টিটি */}
         <div className="flex items-center gap-3">
           <Avatar
             avatarKey={user?.avatar_key}
@@ -45,19 +71,51 @@ export const Header = () => {
           />
           <div className="hidden text-left sm:block">
             <p className="text-xs font-bold text-white uppercase">{user?.full_name || 'Guest'}</p>
-            <p className="text-[10px] text-slate-500">{user?.role?.replace('_', ' ').toUpperCase() || 'USER'} · {user?.identifier || '—'}</p>
+            <p className="text-[10px] text-slate-500">{user?.identifier || '—'}</p>
           </div>
         </div>
 
-        {/* সাইন আউট */}
         <button
           onClick={logout}
           title="Disconnect Session"
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-800 bg-slate-900/80 text-slate-400 hover:text-[#FF1E56] hover:border-[#FF1E56]/40 transition-all"
+          aria-label="Disconnect Session"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-800 bg-slate-900/80 text-slate-400 hover:border-[#FB7185]/40 hover:text-[#FB7185] transition-all"
         >
           <LogOut className="h-4 w-4" />
         </button>
       </div>
     </header>
+  );
+};
+
+/** Small shared panel used by the header popover and the notifications route. */
+export const NotificationList = ({ rows }: { rows: NotificationRow[] }) => {
+  if (!rows.length) {
+    return (
+      <p className="px-4 py-6 text-center text-xs font-mono text-slate-500">
+        No notifications for your account.
+      </p>
+    );
+  }
+  return (
+    <ul className="divide-y divide-slate-800/80">
+      {rows.map((n) => (
+        <li key={n.id} className="px-4 py-3">
+          <div className="flex items-start gap-2">
+            {!n.is_read && (
+              <span
+                className="mt-1.5 h-1.5 w-1.5 rounded-full shrink-0"
+                style={{ backgroundColor: 'var(--accent)' }}
+                aria-label="Unread"
+              />
+            )}
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-100">{n.title}</p>
+              <p className="text-[11px] font-mono text-slate-400 break-words">{n.body}</p>
+            </div>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 };

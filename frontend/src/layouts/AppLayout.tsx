@@ -7,6 +7,9 @@ import { DepartmentWatermark } from '@/components/shared/DepartmentWatermark';
 
 export const AppLayout = () => (
   <div className="flex min-h-screen bg-[#050B14] text-slate-100 relative">
+    {/* সিনেমাটিক প্লেট — ফটো থেকে গ্রেড করা, থিম অনুযায়ী বদলায় */}
+    <div className="dashboard-plate" aria-hidden="true" />
+
     {/* ব্যাকগ্রাউন্ড লোগো ওয়াটারমার্ক */}
     <DepartmentWatermark />
 

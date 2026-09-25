@@ -68,6 +68,8 @@ class AlumniProfile(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     # Opt-in: only visible profiles appear in the public directory / search.
     is_visible: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    # search_tsv is a generated Postgres tsvector (see schema.sql / migration 005).
+    # It is not mapped here so SQLite test metadata can still create the table.
 
     user: Mapped["User"] = relationship("User", back_populates="alumni_profile")
 
@@ -184,7 +186,7 @@ class MentorshipPair(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     mentee_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    # requested / active / ended
+    # requested / active / ended / declined
     status: Mapped[str] = mapped_column(String(20), default="requested", nullable=False)
     requested_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     mentee_note: Mapped[str | None] = mapped_column(String(1000))

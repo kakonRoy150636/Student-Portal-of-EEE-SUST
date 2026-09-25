@@ -5,6 +5,8 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, UUIDPrimaryKeyMixin, TimestampMixin
 
+ALUMNI_POSTED_TAG = "alumni-posted"
+
 class CareerOpportunity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "career_opportunities"
 
@@ -16,6 +18,7 @@ class CareerOpportunity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     application_deadline: Mapped[date] = mapped_column(Date, nullable=False)
     application_target: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(String(1000), nullable=False)
+    tags: Mapped[list] = mapped_column(ARRAY(String), default=list)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=True)
 
 class StudentCVProfile(Base):

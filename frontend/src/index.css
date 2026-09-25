@@ -2,6 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Three color modes, all graded from the same campus photograph ──────────
+   graphite : steel / blue accents (default, matches the photo's shadow floor)
+   brass    : warm brass + copper accents
+   midnight : violet / aurora accents, deepest plate
+   Every mode overrides the same variables, so components never branch on the
+   mode name — they just read --accent-* / --plate-image. */
+:root,
+[data-theme='graphite'] {
+  --plate-image: url('./assets/images/dashboard-atmosphere.jpg');
+  --accent: #5b96e2;
+  --accent-bright: #8fc0f2;
+  --accent-deep: #3a6fb5;
+  --accent-soft: rgba(91, 150, 226, 0.12);
+  --accent-edge: rgba(143, 192, 242, 0.22);
+  --plate-veil: rgba(5, 11, 20, 0.72);
+  --plate-tint: rgba(58, 111, 181, 0.18);
+}
+
+[data-theme='brass'] {
+  --plate-image: url('./assets/images/dashboard-atmosphere-brass.jpg');
+  --accent: #c99a4e;
+  --accent-bright: #e8c48a;
+  --accent-deep: #9a7333;
+  --accent-soft: rgba(201, 154, 78, 0.14);
+  --accent-edge: rgba(232, 196, 138, 0.24);
+  --plate-veil: rgba(12, 9, 5, 0.74);
+  --plate-tint: rgba(154, 115, 51, 0.2);
+}
+
+[data-theme='midnight'] {
+  --plate-image: url('./assets/images/dashboard-atmosphere-midnight.jpg');
+  --accent: #8b7fe8;
+  --accent-bright: #b6adf7;
+  --accent-deep: #5f52b8;
+  --accent-soft: rgba(139, 127, 232, 0.14);
+  --accent-edge: rgba(182, 173, 247, 0.24);
+  --plate-veil: rgba(6, 6, 18, 0.78);
+  --plate-tint: rgba(95, 82, 184, 0.22);
+}
+
 @layer base {
   body {
     background-color: #050B14;
@@ -10,6 +50,51 @@
     overflow-x: hidden;
     min-height: 100vh;
   }
+}
+
+/* ── Cinematic dashboard plate ──────────────────────────────────────────────
+   The photograph itself, graded per mode, fixed behind the whole logged-in
+   shell. Layers top→bottom: accent tint, darkening veil, the plate, a base
+   fill so the page never flashes white while the JPEG decodes. */
+.dashboard-plate {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-color: #050b14;
+  background-image:
+    linear-gradient(180deg, var(--plate-tint) 0%, transparent 45%),
+    linear-gradient(180deg, var(--plate-veil) 0%, var(--plate-veil) 100%),
+    var(--plate-image);
+  background-size: cover, cover, cover;
+  background-position: center, center, center;
+  background-repeat: no-repeat;
+  /* Bleed the plate slightly so a small upscaled JPEG never shows its edges. */
+  transform: scale(1.04);
+  filter: saturate(1.05) contrast(1.03);
+}
+
+/* Vignette + faint HUD grid, drawn above the photo but below the content. */
+.dashboard-plate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, transparent 45%, rgba(0, 0, 0, 0.55) 100%),
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 100% 100%, 44px 44px, 44px 44px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dashboard-plate {
+    transition: background-image 0.4s ease, filter 0.4s ease;
+  }
+}
+
+/* Accent-driven chrome, so the HUD frame follows the active mode. */
+.hud-box {
+  border-color: var(--accent-edge);
 }
 
 /* Sci-Fi HUD কার্ড ফ্রেম */

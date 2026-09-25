@@ -10,12 +10,13 @@ import {
   Briefcase,
   Bot,
   FlaskConical,
-  Crosshair,
-  Shield
+  Shield,
+  GraduationCap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/types/auth';
+import { DeptCrest } from '@/components/shared/DeptCrest';
 
 type NavItem = { name: string; path: string; icon: React.ElementType; isAi?: boolean; roles?: UserRole[] };
 
@@ -48,7 +49,13 @@ export const Sidebar = () => {
       ]
     },
     {
-      group: '04 // CONTROL',
+      group: '04 // ALUMNI',
+      items: [
+        { name: 'Alumni Directory', path: '/dashboard', icon: GraduationCap, roles: [UserRole.ALUMNI] }
+      ]
+    },
+    {
+      group: '05 // CONTROL',
       items: [
         { name: 'Admin Panel', path: '/admin', icon: Shield, roles: [UserRole.SUPER_ADMIN] },
       ]
@@ -65,10 +72,10 @@ export const Sidebar = () => {
   return (
     <aside className="w-64 border-r border-slate-800/80 bg-[#070D18]/90 backdrop-blur-xl p-4 flex flex-col justify-between hidden md:flex min-h-screen sticky top-0 z-20 font-mono">
       <div className="space-y-6">
-        {/* ব্র্যান্ডিং ও স্পিনিং রেটিকল */}
+        {/* ব্র্যান্ডিং ও ডিপার্টমেন্ট ক্রেস্ট */}
         <div className="flex items-center gap-3 px-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#FF1E56]/50 bg-[#FF1E56]/10 text-[#FF1E56] shadow-[0_0_15px_rgba(255,30,86,0.2)]">
-            <Crosshair className="h-5 w-5 animate-[spin_20s_linear_infinite]" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--accent-edge)] bg-[var(--accent-soft)]">
+            <DeptCrest className="h-8 w-8 opacity-95" variant="mono" />
           </div>
           <div>
             <span className="font-mono font-black text-sm tracking-wider text-white">
@@ -114,15 +121,19 @@ export const Sidebar = () => {
         </nav>
       </div>
 
-      {/* নিচের টেলিমেট্রি বক্স */}
+      {/* Signed-in identity, not invented telemetry. The previous footer
+          claimed "UPLINK: ONLINE (99.4%)" and "STATION: SUST IICT" as
+          literals -- figures no code measured. */}
       <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 font-mono text-[10px] space-y-1">
-        <div className="flex items-center justify-between text-slate-400">
-          <span>STATION:</span>
-          <span className="text-[#00F0FF] font-bold">SUST IICT</span>
+        <div className="flex items-center justify-between text-slate-400 gap-2">
+          <span>SESSION:</span>
+          <span className="font-bold" style={{ color: 'var(--accent-bright)' }}>
+            {role ? role.replace('_', ' ').toUpperCase() : '—'}
+          </span>
         </div>
-        <div className="flex items-center justify-between text-slate-400">
-          <span>UPLINK:</span>
-          <span className="text-[#FF1E56] font-bold">ONLINE (99.4%)</span>
+        <div className="flex items-center justify-between text-slate-400 gap-2">
+          <span>PORTAL:</span>
+          <span className="text-slate-300 font-bold">SUST IICT</span>
         </div>
       </div>
     </aside>

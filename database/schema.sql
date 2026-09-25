@@ -183,8 +183,15 @@ CREATE TABLE notifications (
     title VARCHAR(200) NOT NULL,
     body TEXT NOT NULL,
     data_payload JSONB DEFAULT '{}'::jsonb,
+    -- Optional reference to the class_schedules row this alert is about. It
+    -- makes the Celery Beat 1-minute scanner idempotent: one alert per
+    -- (recipient, class session) is enforced by uq_notification_class_session.
+    class_session_id UUID REFERENCES class_schedules(id) ON DELETE CASCADE,
+    notified_at TIMESTAMPTZ,
     is_read BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_notification_class_session UNIQUE (recipient_id, class_session_id)
 );
 
 -- 5. Resources & Books
@@ -317,7 +324,8 @@ CREATE TABLE career_opportunities (
     description TEXT NOT NULL,
     tags TEXT[] NOT NULL DEFAULT '{}',
     is_verified BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE student_cv_profiles (
@@ -403,15 +411,27 @@ CREATE TABLE alumni_profiles (
     is_visible BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    search_tsv TSVECTOR GENERATED ALWAYS AS (
+        to_tsvector(
+            'english',
+            coalesce(department, '') || ' ' ||
+            coalesce(current_company, '') || ' ' ||
+            coalesce(industry, '') || ' ' ||
+            coalesce(designation, '') || ' ' ||
+            coalesce(batch_year::text, '')
+        )
+    ) STORED,
     CONSTRAINT uq_alumni_profiles_user UNIQUE (user_id),
     CONSTRAINT ck_alumni_profiles_membership
-        CHECK (membership_status IN ('pending', 'active', 'expired'))
+        CHECK (membership_status IN ('pending', 'active', 'expired', 'rejected'))
 );
 CREATE INDEX ix_alumni_profiles_user_id ON alumni_profiles (user_id);
 CREATE INDEX ix_alumni_profiles_batch_year ON alumni_profiles (batch_year);
 CREATE INDEX ix_alumni_profiles_industry ON alumni_profiles (industry);
 CREATE INDEX ix_alumni_profiles_membership_status ON alumni_profiles (membership_status);
+CREATE INDEX ix_alumni_profiles_is_visible ON alumni_profiles (is_visible);
 CREATE INDEX ix_alumni_profiles_batch_industry ON alumni_profiles (batch_year, industry);
+CREATE INDEX ix_alumni_profiles_search ON alumni_profiles USING GIN (search_tsv);
 
 CREATE TABLE events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -505,7 +525,7 @@ CREATE TABLE mentorship_pairs (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_mentorship_pairs UNIQUE (mentor_id, mentee_id),
     CONSTRAINT ck_mentorship_pairs_status
-        CHECK (status IN ('requested', 'active', 'ended')),
+        CHECK (status IN ('requested', 'active', 'ended', 'declined')),
     CONSTRAINT ck_mentorship_pairs_not_self
         CHECK (mentor_id <> mentee_id)
 );

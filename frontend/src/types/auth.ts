@@ -3,7 +3,9 @@ export enum UserRole {
   TEACHER = "teacher",
   CR = "cr",
   STUDENT = "student",
-  LAB_ASSISTANT = "lab_assistant"
+  LAB_ASSISTANT = "lab_assistant",
+  /** Mirrors backend/app/models/user.py::UserRole.ALUMNI, which already existed. */
+  ALUMNI = "alumni"
 }
 
 export interface User {
