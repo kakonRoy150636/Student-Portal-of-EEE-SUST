@@ -13,6 +13,8 @@ export interface User {
   full_name: string;
   role: UserRole;
   is_active: boolean;
+  /** Storage key of the uploaded avatar, e.g. "avatars/<uuid>.jpg". */
+  avatar_key?: string | null;
 }
 
 export interface LoginCredentials {

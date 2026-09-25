@@ -20,6 +20,9 @@ class UserResponse(BaseModel):
     full_name: str
     role: UserRole
     is_active: bool
+    # Previously persisted on the model but never returned, so the client had
+    # no way to build an <img src> after registering or logging in.
+    avatar_key: str | None = None
 
     class Config:
         from_attributes = True

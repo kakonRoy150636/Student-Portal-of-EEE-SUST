@@ -1,4 +1,6 @@
 import uuid
+import os
+
 import jwt
 from fastapi import APIRouter, Depends, Response, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +22,12 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 REFRESH_COOKIE = "refresh_token"
 REFRESH_COOKIE_PATH = "/api/v1/auth"
+
+# Avatars are served straight to the browser, so only formats a browser will
+# actually render are accepted; the extension is derived from this allowlist
+# rather than from the client-supplied filename.
+ALLOWED_AVATAR_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+MAX_AVATAR_BYTES = 10 * 1024 * 1024
 
 
 def _set_refresh_cookie(response: Response, value: str) -> None:
@@ -87,7 +95,15 @@ async def avatar_upload(filename: str, content_type: str, size_hint: int = 5 * 1
         raise HTTPException(status_code=415, detail="Only image uploads are supported.")
     if size_hint > 10 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Avatar exceeds maximum size (10 MB).")
-    file_key = f"avatars/{uuid.uuid4()}-{filename.replace('/', '_')}"
+    # Normalise the extension instead of trusting the client filename, so a
+    # "photo.jpg" that is really a script cannot be served back with a .jpg.
+    suffix = os.path.splitext(filename)[1].lower()
+    if suffix not in ALLOWED_AVATAR_EXTENSIONS:
+        raise HTTPException(status_code=415, detail="Unsupported image format.")
+    # Cap what the client declares, and pin the exact ContentLength so a
+    # presigned PUT cannot be replayed with a different declared size.
+    content_length = min(max(int(size_hint), 1), MAX_AVATAR_BYTES)
+    file_key = f"avatars/{uuid.uuid4()}.{suffix.lstrip('.')}"
     try:
         client = boto3.client(
             "s3",
@@ -95,13 +111,18 @@ async def avatar_upload(filename: str, content_type: str, size_hint: int = 5 * 1
             aws_access_key_id=settings.S3_ACCESS_KEY,
             aws_secret_access_key=settings.S3_SECRET_KEY,
         )
+        # NOTE: ContentLengthRange is an S3 *bucket policy* condition, not a
+        # valid put_object param. Passing it here made botocore raise
+        # ParamValidationError, which was caught and reported as a generic
+        # 503 "Avatar storage is unavailable" -- so every avatar upload failed
+        # with a message that pointed at storage instead of at this bug.
         upload_url = client.generate_presigned_url(
             "put_object",
             Params={
                 "Bucket": settings.S3_BUCKET_NAME,
                 "Key": file_key,
                 "ContentType": content_type,
-                "ContentLengthRange": (0, size_hint),
+                "ContentLength": content_length,
             },
             ExpiresIn=300,
         )
