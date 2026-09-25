@@ -5,10 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.user_repository import UserRepository
 from app.core.security import (
     verify_password, get_password_hash, create_access_token, generate_random_token,
-    hash_secret_token,
+    hash_secret_token, create_upload_token,
 )
 from app.core.config import settings
 from app.core.exceptions import UnauthorizedException, ResourceConflictException, NotFoundException
+from app.core.rate_limit import verify_attempt
 from app.schemas.auth import (
     LoginRequest, AuthSessionResponse, TokenResponse, UserResponse,
     TeacherRegisterRequest, StudentRegisterRequest, RegisterResponse,
@@ -66,14 +67,25 @@ class AuthService:
         )
         await self.db.execute(stmt)
 
-    async def authenticate(self, dto: LoginRequest):
+    async def authenticate(self, dto: LoginRequest, client_ip: str = "unknown"):
         user = await self.repo.get_by_identifier(dto.identifier)
-        if not user or not verify_password(dto.password, user.password_hash):
+        password_ok = bool(user) and verify_password(dto.password, user.password_hash)
+
+        # The delay is applied *after* the password check, and only for wrong
+        # credentials. Doing it beforehand (as the first attempt did) meant a
+        # correct password could be made to wait for failures it had nothing
+        # to do with, which turned the throttle into a tool for locking any
+        # known account out of its own password.
+        await verify_attempt(dto.identifier, password_ok, client_ip)
+
+        # Every failure below reports the same message, so a caller cannot
+        # enumerate which identifiers exist. This also covers what used to be
+        # a distinct "awaiting admin approval" string, which confirmed that
+        # a given email belonged to a real, unapproved teacher/CR/ER account.
+        if not password_ok:
             raise UnauthorizedException("Invalid institutional identifier or password.")
         if not user.is_active:
-            if user.role in (UserRole.TEACHER, UserRole.CR, UserRole.LAB_ASSISTANT):
-                raise UnauthorizedException("Your account is awaiting admin approval.")
-            raise UnauthorizedException("User account is inactive.")
+            raise UnauthorizedException("Invalid institutional identifier or password.")
 
         token = create_access_token({"sub": str(user.id), "role": user.role.value})
         refresh = await self._issue_refresh_token(user.id)
@@ -138,7 +150,6 @@ class AuthService:
             identifier=identifier,
             email=dto.email,
             full_name=dto.full_name,
-            avatar_key=dto.avatar_key,
             password_hash=get_password_hash(dto.password),
             role=UserRole.TEACHER,
             is_active=False,
@@ -149,6 +160,7 @@ class AuthService:
         return RegisterResponse(
             message="Registered. Awaiting admin approval before you can log in.",
             requires_approval=True,
+            upload_token=create_upload_token(str(user.id)),
         )
 
     async def register_student(self, dto: StudentRegisterRequest) -> RegisterResponse:
@@ -167,7 +179,6 @@ class AuthService:
             identifier=dto.identifier,
             email=dto.email,
             full_name=dto.full_name,
-            avatar_key=dto.avatar_key,
             password_hash=get_password_hash(dto.password),
             role=role,
             is_active=role == UserRole.STUDENT,  # CR and ER require admin approval
@@ -195,6 +206,7 @@ class AuthService:
         return RegisterResponse(
             message=message,
             requires_approval=requires_approval,
+            upload_token=create_upload_token(str(user.id)),
         )
 
     async def list_pending_approvals(self):
@@ -207,3 +219,13 @@ class AuthService:
         user.is_active = True
         await self.db.commit()
         return {"message": f"{user.full_name} approved.", "user_id": user.id}
+
+    async def attach_avatar(self, user: User, file_key: str) -> None:
+        """Persist a just-finalised avatar on the user row.
+
+        Called only after the object has been measured and its magic bytes
+        checked. Replacing an existing key leaves the old object in the
+        bucket; cleaning that up is a later job, not this request's.
+        """
+        user.avatar_key = file_key
+        await self.db.commit()

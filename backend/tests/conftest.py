@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import JSON, Text, UniqueConstraint, Uuid, event, text
+from sqlalchemy import JSON, MetaData, Text, UniqueConstraint, Uuid, event, text
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.postgresql import ExcludeConstraint
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine

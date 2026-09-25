@@ -14,6 +14,15 @@ class Settings(BaseSettings):
     DB_ECHO: bool = False
 
     REDIS_URL: str = "redis://redis:6379/0"
+    # Peer addresses permitted to speak for the client via X-Forwarded-For.
+    # Empty by default, which is correct while the API port is reached
+    # directly: XFF is client-controlled, so trusting it unconditionally would
+    # let an attacker mint a fresh throttle bucket per request and bypass the
+    # per-IP counter. Populate this when a reverse proxy fronts the API.
+    TRUSTED_PROXIES: List[str] = []
+    # Parseable so a real deployment can supply its own origins as
+    # CORS_ORIGINS='["https://portal.sust.edu"]' without a code change.
+    # Defaults remain the local dev servers.
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",
         "http://localhost:5174",
@@ -34,3 +43,31 @@ class Settings(BaseSettings):
         extra = "ignore"
 
 settings = Settings()
+
+# --- production safety net -------------------------------------------------
+# The default SECRET_KEY is committed to the repository, so a deployment that
+# sets ENVIRONMENT=production without supplying its own key would sign JWTs
+# with a value every reader of the source can forge. Refusing to start is
+# far better than shipping a forgeable token to production.
+_WEAK_SECRET_KEYS = {
+    "dev_secret_key_sust_eee_smart_student_portal_256bit",
+    "changeme",
+    "secret",
+    "supersecret",
+}
+
+if settings.ENVIRONMENT.lower() == "production":
+    if settings.SECRET_KEY in _WEAK_SECRET_KEYS or len(settings.SECRET_KEY) < 32:
+        raise RuntimeError(
+            "SECRET_KEY must be set to a unique value of at least 32 characters "
+            "when ENVIRONMENT=production. Refusing to start with a weak key."
+        )
+    insecure_origins = [
+        origin
+        for origin in settings.CORS_ORIGINS
+        if origin.startswith("http://") and not origin.startswith("http://localhost")
+    ]
+    if insecure_origins:
+        raise RuntimeError(
+            f"CORS_ORIGINS must use https in production; found {insecure_origins}."
+        )

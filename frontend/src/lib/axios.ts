@@ -10,7 +10,10 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  if (token && config.headers) {
+  // Do not clobber an Authorization header the caller already set -- the
+  // register flow attaches a short-lived upload token that is not the
+  // session access token, and overwriting it would 401 the photo upload.
+  if (token && config.headers && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;

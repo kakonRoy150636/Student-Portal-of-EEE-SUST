@@ -56,35 +56,51 @@ export default function RegisterPage() {
   };
 
   /**
-   * Upload straight to object storage using the presigned URL.
+   * Attach a photo *after* the account exists, using the short-lived upload
+   * token returned by register. Uploading first used to work only because
+   * /avatar-upload was unauthenticated -- that hole is closed, so the
+   * account has to exist before a key can be minted for it.
    *
-   * Two failure modes here are worth separating, because they have different
-   * fixes: a storage outage (no URL available) should not block registration,
-   * whereas a failed PUT means the object is missing and must not be linked.
+   * A storage outage must not undo the just-created account: the caller
+   * already succeeded, and we only surface a photo-specific warning.
    */
-  const uploadAvatar = async (): Promise<string | undefined> => {
-    if (!avatar) return undefined;
+  const uploadAvatar = async (uploadToken: string): Promise<void> => {
+    if (!avatar) return;
 
-    let data: { file_key: string; upload_url: string };
+    const headers = { Authorization: `Bearer ${uploadToken}` };
+    let data: { file_key: string; upload_url: string; content_type: string };
     try {
       ({ data } = await api.post('/auth/avatar-upload', null, {
-        params: { filename: avatar.name, content_type: avatar.type, size_hint: avatar.size },
+        params: { filename: avatar.name },
+        headers,
       }));
-    } catch {
+    } catch (requestError: any) {
+      if ([401, 403].includes(requestError?.response?.status)) {
+        throw new Error('We could not attach your photo. You can add one after signing in.');
+      }
       setAvatarError('We could not reach image storage, so your account was created without a photo. You can add one later.');
-      return undefined;
+      return;
     }
 
-    // The presigned URL is signed for this exact length, so send the same one.
+    // The Content-Type is pinned server-side and must be sent verbatim or
+    // storage rejects the PUT. The browser's file.type is deliberately ignored.
     const uploadResponse = await fetch(data.upload_url, {
       method: 'PUT',
-      headers: { 'Content-Type': avatar.type },
+      headers: { 'Content-Type': data.content_type },
       body: avatar,
     });
     if (!uploadResponse.ok) {
-      throw new Error('Your photo could not be uploaded. Please try again, or continue without a photo.');
+      throw new Error('Your photo could not be uploaded. Your account was created; you can add a photo later.');
     }
-    return data.file_key;
+
+    try {
+      await api.post('/auth/avatar-upload/finalize', { file_key: data.file_key }, { headers });
+    } catch (requestError: any) {
+      throw new Error(
+        requestError?.response?.data?.detail ||
+        'That photo could not be verified and was not saved. Your account was created; please try another image later.',
+      );
+    }
   };
 
   const submit = async (event: React.FormEvent) => {
@@ -94,14 +110,21 @@ export default function RegisterPage() {
     setMessage('');
     setAvatarError('');
     try {
-      const avatar_key = await uploadAvatar();
-      const payload = { ...form, ...(avatar_key ? { avatar_key } : {}) };
       const endpoint = role === 'teacher' ? '/auth/register/teacher' : '/auth/register/student';
       const body = role === 'teacher'
-        ? { full_name: payload.full_name, email: payload.email, password: payload.password, avatar_key }
-        : { ...payload, role: role === 'er' ? 'er' : role, course_selections: [] };
+        ? { full_name: form.full_name, email: form.email, password: form.password }
+        : { ...form, role: role === 'er' ? 'er' : role, course_selections: [] };
       const { data } = await api.post(endpoint, body);
       setMessage(data.message);
+
+      if (avatar && data.upload_token) {
+        try {
+          await uploadAvatar(data.upload_token);
+        } catch (photoError: any) {
+          setAvatarError(photoError?.message || 'Account created, but the photo could not be saved.');
+        }
+      }
+
       if (!data.requires_approval) window.setTimeout(() => navigate('/auth/login'), 1200);
     } catch (requestError: any) {
       setError(requestError?.response?.data?.detail || requestError?.message || 'Registration failed. Please check your details and try again.');

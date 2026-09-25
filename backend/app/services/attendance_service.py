@@ -83,6 +83,19 @@ class AttendanceService:
             })
         return summary
 
+    async def get_offering_id_for_session(self, session_id):
+        """Resolve the course an attendance session belongs to.
+
+        The update route needs this to authorise the caller, but
+        ``update_records`` was the only entry point exposed, so there was no
+        way to check ownership. Raising 404 for an unknown session keeps a
+        caller from distinguishing "no such session" from "not your course".
+        """
+        session = await self.repo.get_by_id(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found.")
+        return session.course_offering_id
+
     async def update_records(self, session_id, records):
         session = await self.repo.get_by_id(session_id)
         if not session:

@@ -41,7 +41,8 @@ class TeacherRegisterRequest(BaseModel):
     full_name: str
     email: EmailStr
     password: str = Field(..., min_length=6)
-    avatar_key: str | None = None
+    # avatar_key is deliberately absent: the only write path is
+    # /auth/avatar-upload/finalize after the object has been measured.
 
 
 class StudentRegisterRequest(BaseModel):
@@ -51,7 +52,6 @@ class StudentRegisterRequest(BaseModel):
     password: str = Field(..., min_length=6)
     session_year: str
     current_term: str
-    avatar_key: str | None = None
     role: Literal["student", "cr", "er"] = "student"
     course_selections: list[CourseSelection] = Field(default_factory=list)
 
@@ -70,8 +70,24 @@ class PendingApprovalUser(BaseModel):
 class RegisterResponse(BaseModel):
     message: str
     requires_approval: bool
+    # Short-lived token the client uses only to attach a photo after the
+    # account exists. Absent when the caller did not need one. Never a session.
+    upload_token: str | None = None
 
 
 class AvatarUploadResponse(BaseModel):
     file_key: str
     upload_url: str
+    # Echo of the Content-Type pinned into the signature. The browser must
+    # send this verbatim on the PUT or storage rejects the upload; the
+    # client's own file.type is deliberately not consulted.
+    content_type: str
+
+
+class AvatarFinalizeRequest(BaseModel):
+    file_key: str
+
+
+class AvatarFinalizeResponse(BaseModel):
+    file_key: str
+    size: int

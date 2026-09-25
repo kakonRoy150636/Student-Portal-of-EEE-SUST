@@ -37,3 +37,29 @@ def create_access_token(data: Dict[str, Any], expires_delta: timedelta | None = 
     )
     to_encode.update({"exp": expire, "iat": datetime.now(timezone.utc), "type": "access"})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+UPLOAD_TOKEN_EXPIRE_MINUTES = 10
+
+
+def create_upload_token(user_id: str, expires_delta: timedelta | None = None) -> str:
+    """Short-lived token that can only call the avatar upload endpoints.
+
+    Registration happens before login, and teacher/CR/ER accounts are created
+    inactive, so a normal access token cannot be used to attach a photo at
+    signup. This token is scoped to type=avatar_upload, expires in minutes,
+    and is accepted only by the avatar routes -- it is not a session.
+    """
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(minutes=UPLOAD_TOKEN_EXPIRE_MINUTES)
+    )
+    return jwt.encode(
+        {
+            "sub": str(user_id),
+            "exp": expire,
+            "iat": datetime.now(timezone.utc),
+            "type": "avatar_upload",
+        },
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )

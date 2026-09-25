@@ -43,5 +43,12 @@ async def update_attendance(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # This route previously had no authorisation check at all, unlike its
+    # siblings below, so any authenticated user -- including a student --
+    # could rewrite the attendance of any session in the system by guessing
+    # a UUID. Ownership is resolved first so that only the teacher who took
+    # the session (or an admin) may amend it.
+    offering_id = await AttendanceService(db).get_offering_id_for_session(session_id)
+    await verify_course_teacher(offering_id, user, db)
     service = AttendanceService(db)
     return await service.update_records(session_id, payload.records)
