@@ -4,6 +4,19 @@ The SUST EEE Smart Student Portal is a full-stack academic platform for the Depa
 
 It brings course planning, attendance, room and lab booking, resources, projects, career services, AI-assisted academic search, notifications, and alumni engagement into one role-aware portal.
 
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
+[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)](backend)
+[![React](https://img.shields.io/badge/UI-React%20%2B%20TypeScript-61DAFB?logo=react&logoColor=111827)](frontend)
+[![PostgreSQL](https://img.shields.io/badge/DB-PostgreSQL%2016-336791?logo=postgresql&logoColor=white)](database)
+[![License](https://img.shields.io/badge/license-MIT-C9A227)](LICENSE)
+
+> A department-focused portal that turns everyday academic work into one clear, measurable workflow.
+
+![SUST EEE student dashboard preview](frontend/src/assets/images/login-hero.jpg)
+
+**Try it locally:** `docker compose up --build -d postgres redis minio backend celery_worker celery_beat frontend`
+**Open the app:** [localhost:5173](http://localhost:5173)
+
 ## What It Includes
 
 | Area | Highlights |
@@ -49,6 +62,26 @@ The first screen is designed for a real student workflow: a campus-led welcome a
 - Subtle border and elevation changes provide feedback without distracting glow effects.
 - Deep-linkable cards take users directly to schedule, attendance, resources, career, or the AI assistant.
 - Responsive layouts preserve the visual hierarchy on laptop, tablet, and mobile screens.
+
+## Why This Project
+
+University departments often split attendance, schedules, notices, rooms, resources, and alumni records across spreadsheets and chat groups. This project treats those workflows as one connected system, with permissions and database constraints designed around the people who use it.
+
+The goal is not only to show screens. It is to make the important answers easy to find:
+
+- What classes do I have today?
+- Is my attendance on track?
+- Which resources or opportunities are relevant to me?
+- What needs an admin's approval?
+- How can alumni stay visible, connected, and useful to current students?
+
+## Share This Project
+
+Short description for LinkedIn, Facebook, or a portfolio:
+
+> I built the SUST EEE Smart Student Portal, a full-stack academic platform for the Department of EEE at SUST. It combines JWT/RBAC authentication, live role-based dashboards, attendance and scheduling, conflict-aware bookings, resources, career tools, an AI academic assistant, and an alumni portal using FastAPI, React, PostgreSQL, Redis, Celery, and Docker.
+
+Suggested tags: `#FastAPI` `#ReactJS` `#TypeScript` `#PostgreSQL` `#Docker` `#EdTech` `#OpenSource`
 
 ## Architecture
 
@@ -195,6 +228,8 @@ Use this short path when presenting the project:
 - Add production observability and department analytics
 - Improve mobile navigation and PWA support
 - Support additional university departments after EEE validation
+- Add automated CI checks for backend tests and frontend builds
+- Publish a short product demo and screenshots for each role
 
 ## Contributing
 
