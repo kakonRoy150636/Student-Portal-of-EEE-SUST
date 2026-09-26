@@ -283,10 +283,8 @@ async def _today_routine(db: AsyncSession, owner_filter) -> list[dict]:
     )
     # Restrict to the caller's own enrolments.
     if owner_filter is not None:
-        enrolled = (
-            select(CourseEnrollment.course_offering_id)
-            .where(owner_filter, CourseEnrollment.status.notin_(("drop",)))
-            .subquery()
+        enrolled = select(CourseEnrollment.course_offering_id).where(
+            owner_filter, CourseEnrollment.status.notin_(("drop",))
         )
         stmt = stmt.where(CourseOffering.id.in_(enrolled))
 
