@@ -17,6 +17,20 @@ It brings course planning, attendance, room and lab booking, resources, projects
 **Try it locally:** `docker compose up --build -d postgres redis minio backend celery_worker celery_beat frontend`
 **Open the app:** [localhost:5173](http://localhost:5173)
 
+## Product Preview
+
+The screenshots below are captured from the running local application, not mockups.
+
+### Sign in
+
+![SUST EEE Portal login page](docs/screenshots/login-page.png)
+
+### Student home
+
+![SUST EEE Portal student dashboard](docs/screenshots/student-homepage.png)
+
+The student home combines a campus-led visual introduction with live academic metrics, quick actions, today's classes, and attendance status. Demo credentials are intentionally not published in the repository.
+
 ## What It Includes
 
 | Area | Highlights |
