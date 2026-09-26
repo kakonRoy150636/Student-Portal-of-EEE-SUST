@@ -23,6 +23,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const token = localStorage.getItem(TOKEN_KEY);
     if (token) {
       setAccessToken(token);
+      // A stale access token is normal here: the axios interceptor silently
+      // calls /auth/refresh and replays this request, so a failure only means
+      // the session is genuinely gone.
       api.get('/auth/me').then(({ data }) => setUser(data)).catch(() => {
         localStorage.removeItem(TOKEN_KEY);
         setAccessToken(null);
@@ -30,6 +33,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } else {
       setLoading(false);
     }
+  }, []);
+
+  // Fired by the axios interceptor when refreshing fails, so a dead session
+  // drops the cached user instead of leaving a stale dashboard on screen.
+  useEffect(() => {
+    const onExpired = () => setUser(null);
+    window.addEventListener('auth:session-expired', onExpired);
+    return () => window.removeEventListener('auth:session-expired', onExpired);
   }, []);
 
   const login = async (creds: LoginCredentials) => {

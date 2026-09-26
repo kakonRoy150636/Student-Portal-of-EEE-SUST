@@ -1,19 +1,13 @@
 import uuid
 from typing import List
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.user import User, UserRole
-# backend/app/api/dependencies.py
-from app.models.academic import CourseOfferingTeacher
-from app.models.user import User, UserRole
-from fastapi import Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.academic import CourseOfferingTeacher
 
 security_scheme = HTTPBearer(auto_error=True)
@@ -25,16 +19,35 @@ async def get_current_user(
     token = cred.credentials
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id = payload.get("sub")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token.")
     except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Credentials invalid.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Credentials invalid."
+        )
 
-    stmt = select(User).where(User.id == uuid.UUID(user_id))
+    # Only access tokens are accepted here; create_access_token stamps this
+    # claim and nothing else mints one, so a future refresh-token flow cannot
+    # accidentally be traded for an access token.
+    if payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type."
+        )
+
+    user_id = payload.get("sub")
+    # Guard the UUID cast: an unparsable sub must be a 401, not an uncaught
+    # ValueError bubbling up as a 500.
+    try:
+        user_uuid = uuid.UUID(user_id)
+    except (TypeError, ValueError, AttributeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token."
+        )
+
+    stmt = select(User).where(User.id == user_uuid)
     user = (await db.execute(stmt)).scalar_one_or_none()
     if not user or not user.is_active:
-        raise HTTPException(status_code=401, detail="User not active.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not active."
+        )
     return user
 
 class RequireRole:

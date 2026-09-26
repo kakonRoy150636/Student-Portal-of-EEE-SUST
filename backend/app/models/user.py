@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import String, Boolean, Enum, ForeignKey
+from sqlalchemy import String, Boolean, Enum, ForeignKey, ARRAY
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -59,5 +59,6 @@ class FacultyProfile(Base):
     designation: Mapped[str] = mapped_column(String(100), nullable=False)
     room_number: Mapped[Optional[str]] = mapped_column(String(50))
     office_hours: Mapped[Optional[str]] = mapped_column(String(255))
+    research_areas: Mapped[Optional[list]] = mapped_column(ARRAY(String(200)))
 
     user: Mapped["User"] = relationship("User", back_populates="faculty_profile")

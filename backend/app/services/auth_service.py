@@ -18,6 +18,22 @@ from app.models.auth import RefreshToken
 from app.models.academic import CourseEnrollment
 
 
+def _is_expired(expires_at: datetime) -> bool:
+    """Whether a refresh token's expiry has passed.
+
+    ``expires_at`` is TIMESTAMPTZ in Postgres (asyncpg hands back aware
+    datetimes), but SQLite -- used by the test suite -- has no timezone-aware
+    storage and returns naive values. Comparing either against an aware
+    ``datetime.now(timezone.utc)`` raises TypeError, which would surface as a
+    500 instead of a normal "expired" rejection, so the two are normalised
+    before comparing.
+    """
+    if expires_at.tzinfo is None:
+        # Naive value: compare both sides as naive UTC.
+        return expires_at < datetime.now(timezone.utc).replace(tzinfo=None)
+    return expires_at < datetime.now(timezone.utc)
+
+
 class AuthService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -87,7 +103,7 @@ class AuthService:
             await self._revoke_family(stored.token_family)
             await self.db.commit()
             raise UnauthorizedException("Refresh token has been revoked.")
-        if stored.expires_at < datetime.now(timezone.utc):
+        if _is_expired(stored.expires_at):
             await self._revoke_family(stored.token_family)
             await self.db.commit()
             raise UnauthorizedException("Refresh token has expired.")

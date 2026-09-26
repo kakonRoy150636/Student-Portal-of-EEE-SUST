@@ -17,8 +17,10 @@ class UserRepository(BaseRepository[User]):
         return (await self.db.execute(stmt)).scalar_one_or_none()
 
     async def list_pending_approval(self) -> list[User]:
+        # LAB_ASSISTANT (ER) registrations are also created inactive and must
+        # surface here, otherwise they can never be approved by an admin.
         stmt = select(User).where(
             User.is_active.is_(False),
-            User.role.in_([UserRole.TEACHER, UserRole.CR]),
+            User.role.in_([UserRole.TEACHER, UserRole.CR, UserRole.LAB_ASSISTANT]),
         )
         return list((await self.db.execute(stmt)).scalars().all())

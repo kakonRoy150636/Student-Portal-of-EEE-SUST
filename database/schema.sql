@@ -400,6 +400,7 @@ CREATE TABLE alumni_profiles (
     linkedin_url VARCHAR(255),
     verified_by_admin BOOLEAN NOT NULL DEFAULT FALSE,
     membership_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    is_visible BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_alumni_profiles_user UNIQUE (user_id),
@@ -423,11 +424,18 @@ CREATE TABLE events (
     cover_photo_key VARCHAR(512),
     is_published BOOLEAN NOT NULL DEFAULT FALSE,
     members_only BOOLEAN NOT NULL DEFAULT FALSE,
+    event_type VARCHAR(20) NOT NULL DEFAULT 'meetup',
+    -- NULL capacity == unlimited; otherwise attending RSVPs claim a seat.
+    capacity INT,
+    -- Set by the Celery Beat announcer when a published event's FCM
+    -- broadcast goes out; keeps the minute-scanner idempotent.
+    announced_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX ix_events_starts_at ON events (starts_at);
 CREATE INDEX ix_events_is_published ON events (is_published);
+CREATE INDEX ix_events_event_type ON events (event_type);
 
 CREATE TABLE event_rsvps (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -435,11 +443,19 @@ CREATE TABLE event_rsvps (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     rsvp_status VARCHAR(20) NOT NULL DEFAULT 'attending',
     note VARCHAR(500),
+    -- Each attending RSVP claims a disjoint [seat, seat] point range so the
+    -- DB rejects overbooking even under concurrent requests. Non-attending
+    -- rows keep a NULL slot and never consume capacity.
+    slot_range INT4RANGE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_event_rsvps_event_user UNIQUE (event_id, user_id),
     CONSTRAINT ck_event_rsvps_status
-        CHECK (rsvp_status IN ('attending', 'interested', 'not_attending'))
+        CHECK (rsvp_status IN ('attending', 'interested', 'not_attending')),
+    CONSTRAINT no_double_booked_event_seats EXCLUDE USING gist (
+        event_id WITH =,
+        slot_range WITH &&
+    ) WHERE (rsvp_status = 'attending')
 );
 
 CREATE TABLE scholarships (
@@ -463,14 +479,16 @@ CREATE TABLE scholarship_applications (
     scholarship_id UUID NOT NULL REFERENCES scholarships(id) ON DELETE CASCADE,
     applicant_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     motivation VARCHAR(2000) NOT NULL,
-    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    document_key VARCHAR(512),
+    document_name VARCHAR(255),
+    status VARCHAR(20) NOT NULL DEFAULT 'submitted',
     reviewed_by UUID REFERENCES users(id),
     reviewed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_scholarship_applications UNIQUE (scholarship_id, applicant_id),
     CONSTRAINT ck_scholarship_applications_status
-        CHECK (status IN ('pending', 'shortlisted', 'awarded', 'rejected'))
+        CHECK (status IN ('submitted', 'under_review', 'approved', 'rejected'))
 );
 
 CREATE TABLE mentorship_pairs (

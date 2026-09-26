@@ -1,0 +1,10 @@
+FROM python:3.11-slim
+WORKDIR /app
+RUN pip install --no-cache-dir --upgrade pip
+COPY requirements-dev.txt .
+RUN pip install --no-cache-dir -r requirements-dev.txt
+COPY . .
+ENV ENVIRONMENT=test \
+    SECRET_KEY=test_secret_key_for_unit_tests_only_not_used_in_prod \
+    PYTHONPATH=/app
+CMD ["python", "-m", "pytest", "-q"]

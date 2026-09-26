@@ -1,4 +1,5 @@
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 .venv/
@@ -11,3 +12,7 @@ dist/
 .DS_Store
 pgdata/
 miniodata/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+coverage/

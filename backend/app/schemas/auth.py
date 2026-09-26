@@ -4,7 +4,9 @@ from pydantic import BaseModel, EmailStr, Field
 from app.models.user import UserRole
 
 class LoginRequest(BaseModel):
-    identifier: str = Field(..., min_length=3, max_length=32)
+    # Accepts either the institutional identifier (VARCHAR(32)) or the login
+    # email (VARCHAR(255)), so the cap must be the wider of the two.
+    identifier: str = Field(..., min_length=3, max_length=255)
     password: str = Field(..., min_length=6)
 
 class TokenResponse(BaseModel):
