@@ -32,7 +32,7 @@ export const Avatar = ({ avatarKey, fullName, className, alt }: AvatarProps) => 
   return (
     <div
       className={cn(
-        'relative flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#00F0FF]/40 bg-[#00F0FF]/10 text-xs font-bold text-[#00F0FF]',
+        'relative flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[var(--accent-edge)] bg-[var(--accent-soft)] text-xs font-bold text-[var(--accent-bright)]',
         className
       )}
     >

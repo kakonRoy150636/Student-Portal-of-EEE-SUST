@@ -6,23 +6,19 @@ export default {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#10b981',
+          DEFAULT: '#0F2557',
           foreground: '#ffffff'
         },
-        // Palette sampled directly from the campus photo (login-hero.jpg).
-        // 'accent' is the exact dominant k-means cluster in that image (#5B96E2),
-        // so the UI reads as part of the photograph instead of a green template.
         accent: {
-          DEFAULT: '#5B96E2',   // literal dominant cluster in the photo
-          bright: '#8FC0F2',    // lifted; 10.3:1 on base, safe for text
-          deep: '#3A6FB5',      // pressed / borders
-          soft: 'rgba(91, 150, 226, 0.12)',
-          edge: 'rgba(143, 192, 242, 0.22)'
+          DEFAULT: '#C9A227',
+          bright: '#E2C45C',
+          deep: '#927516',
+          soft: 'rgba(201, 162, 39, 0.13)',
+          edge: 'rgba(226, 196, 92, 0.28)'
         },
-        // second warm cluster pulled from the same photo (9.7% of saturated px)
-        sand: '#E1B88C',
-        ink: '#050B14',        // matches the photo's shadow floor + app body
-        slate1: '#9FB3C8'      // muted text, 9.2:1 on ink
+        sand: '#D4A017',
+        ink: '#0B1120',
+        slate1: '#A8B3C7'
       }
     },
   },

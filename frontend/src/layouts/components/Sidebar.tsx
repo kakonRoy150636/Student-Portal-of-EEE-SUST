@@ -25,7 +25,7 @@ export const Sidebar = () => {
 
   const allSections: { group: string; items: NavItem[] }[] = [
     {
-      group: '01 // TELEMETRY',
+      group: 'MAIN MENU',
       items: [
         { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
         { name: 'Schedule', path: '/schedule', icon: Calendar, roles: [UserRole.STUDENT, UserRole.CR, UserRole.TEACHER] },
@@ -33,7 +33,7 @@ export const Sidebar = () => {
       ]
     },
     {
-      group: '02 // ACADEMICS',
+      group: 'ACADEMICS',
       items: [
         { name: 'Lab Management', path: '/labs', icon: FlaskConical, roles: [UserRole.TEACHER, UserRole.LAB_ASSISTANT, UserRole.SUPER_ADMIN] },
         { name: 'Room Booking', path: '/room-booking', icon: Clock, roles: [UserRole.STUDENT, UserRole.CR, UserRole.TEACHER, UserRole.SUPER_ADMIN] },
@@ -42,20 +42,20 @@ export const Sidebar = () => {
       ]
     },
     {
-      group: '03 // INTELLIGENCE',
+      group: 'TOOLS',
       items: [
         { name: 'Career Portal', path: '/career', icon: Briefcase, roles: [UserRole.STUDENT, UserRole.CR] },
         { name: 'AI Assistant', path: '/ai', icon: Bot, isAi: true },
       ]
     },
     {
-      group: '04 // ALUMNI',
+      group: 'ALUMNI',
       items: [
         { name: 'Alumni Directory', path: '/dashboard', icon: GraduationCap, roles: [UserRole.ALUMNI] }
       ]
     },
     {
-      group: '05 // CONTROL',
+      group: 'ADMINISTRATION',
       items: [
         { name: 'Admin Panel', path: '/admin', icon: Shield, roles: [UserRole.SUPER_ADMIN] },
       ]
@@ -70,7 +70,7 @@ export const Sidebar = () => {
     .filter((sec) => sec.items.length > 0);
 
   return (
-    <aside className="w-64 border-r border-slate-800/80 bg-[#070D18]/90 backdrop-blur-xl p-4 flex flex-col justify-between hidden md:flex min-h-screen sticky top-0 z-20 font-mono">
+    <aside className="w-64 border-r border-slate-800/80 bg-[#0f2557]/95 p-4 flex flex-col justify-between hidden md:flex min-h-screen sticky top-0 z-20">
       <div className="space-y-6">
         {/* ব্র্যান্ডিং ও ডিপার্টমেন্ট ক্রেস্ট */}
         <div className="flex items-center gap-3 px-2">
@@ -81,7 +81,7 @@ export const Sidebar = () => {
             <span className="font-mono font-black text-sm tracking-wider text-white">
               SUST // EEE
             </span>
-            <p className="text-[10px] font-mono text-cyan-400">COMMAND INTERFACE</p>
+              <p className="text-[10px] font-medium tracking-wide text-amber-200/80">EEE STUDENT PORTAL</p>
           </div>
         </div>
 
@@ -100,13 +100,13 @@ export const Sidebar = () => {
                     cn(
                       'group flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-lg transition-all',
                       isActive
-                        ? 'border-l-2 border-[#FF1E56] bg-gradient-to-r from-[#FF1E56]/15 to-transparent text-white font-bold shadow-[inset_0_0_10px_rgba(255,30,86,0.1)]'
-                        : 'text-slate-400 hover:text-cyan-300 hover:bg-slate-900/60'
+                        ? 'border-l-2 border-amber-300 bg-white/10 text-white font-semibold'
+                        : 'text-slate-300 hover:text-white hover:bg-white/10'
                     )
                   }
                 >
                   <div className="flex items-center gap-3">
-                    <i.icon className="h-4 w-4 transition-transform group-hover:scale-110 text-slate-400 group-hover:text-cyan-400" />
+                    <i.icon className="h-4 w-4 transition-transform group-hover:scale-105 text-slate-300 group-hover:text-amber-200" />
                     <span>{i.name}</span>
                   </div>
                   {i.isAi && (

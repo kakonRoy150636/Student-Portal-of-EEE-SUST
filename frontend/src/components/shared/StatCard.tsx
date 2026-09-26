@@ -48,7 +48,7 @@ export const StatCard = ({
   const t = TONE[tone];
   const body = (
     <>
-      <div className="flex items-center justify-between pb-3 text-[10px] font-mono tracking-widest text-slate-500 border-b border-slate-800/80">
+      <div className="flex items-center justify-between pb-3 text-[10px] font-semibold tracking-widest text-slate-500 border-b border-slate-800/80">
         <span>{tag ?? title.toUpperCase()}</span>
       </div>
 
@@ -77,7 +77,7 @@ export const StatCard = ({
     </>
   );
 
-  const shell = `hud-box corner-brackets relative block rounded-xl p-5 overflow-hidden transition-colors ${
+  const shell = `hud-box corner-brackets relative block rounded-lg p-5 overflow-hidden transition-colors ${
     href ? 'hover:border-[var(--accent-edge)]' : ''
   }`;
 

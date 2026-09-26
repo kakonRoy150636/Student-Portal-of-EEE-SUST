@@ -1,11 +1,11 @@
 import React from 'react';
-import { Cpu } from 'lucide-react';
+import { Bell, CalendarDays } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar } from '@/components/shared/Avatar';
 import { ThemeSwitcher } from '@/components/shared/ThemeSwitcher';
 
 interface DashboardHeroProps {
-  consoleName: string;
+  consoleName?: string;
   roleName: string;
   /** Only rendered when a count is actually known. */
   unreadNotifications?: number;
@@ -32,22 +32,11 @@ export const DashboardHero = ({ consoleName, roleName, unreadNotifications }: Da
             'linear-gradient(to left, var(--accent-soft), color-mix(in srgb, var(--accent) 8%, transparent), transparent)',
         }}
       />
-      <div className="relative z-10 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+      <div className="relative z-10 flex flex-col justify-between gap-6 md:flex-row md:items-center">
         <div className="space-y-2">
-          <div className="flex items-center gap-3 font-mono text-xs">
-            <span
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded border font-bold text-[10px] tracking-wider uppercase"
-              style={{
-                backgroundColor: 'var(--accent-soft)',
-                borderColor: 'var(--accent-edge)',
-                color: 'var(--accent-bright)',
-              }}
-            >
-              <Cpu className="h-3 w-3" />
-              {consoleName}
-            </span>
-            <span className="text-slate-400 text-[11px] uppercase">{roleName}</span>
-          </div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--accent-bright)' }}>
+            {consoleName ?? roleName}
+          </p>
           <div className="flex items-center gap-4">
             <Avatar
               avatarKey={user?.avatar_key}
@@ -56,28 +45,30 @@ export const DashboardHero = ({ consoleName, roleName, unreadNotifications }: Da
               alt={`${name}'s profile photo`}
             />
             <div>
-              <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white font-mono uppercase">{name}</h1>
-              <p className="text-xs font-mono" style={{ color: 'var(--accent-bright)' }}>
-                DEPARTMENT OF ELECTRICAL &amp; ELECTRONIC ENGINEERING // SUST
+              <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">Welcome back, {name}</h1>
+              <p className="mt-1 text-sm text-slate-400">
+                Department of Electrical and Electronic Engineering · SUST
               </p>
             </div>
           </div>
         </div>
-        <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4 font-mono text-xs space-y-2 min-w-[16rem]">
+        <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4 text-xs space-y-2 min-w-[16rem]">
           <div className="flex items-center justify-between gap-4">
-            <span className="text-slate-400">ACCOUNT:</span>
-            <span className="font-bold text-white">{user?.identifier || '—'}</span>
+            <span className="text-slate-400">Student ID</span>
+            <span className="font-semibold text-white">{user?.identifier || '—'}</span>
           </div>
           <div className="flex items-center justify-between gap-4 border-t border-slate-800/80 pt-2">
-            <span className="text-slate-400">UNREAD ALERTS:</span>
-            <span className="font-bold" style={{ color: 'var(--accent-bright)' }}>
-              {typeof unreadNotifications === 'number' ? unreadNotifications : '—'}
+            <span className="flex items-center gap-2 text-slate-400"><Bell className="h-3.5 w-3.5" /> Notifications</span>
+            <span className="font-semibold" style={{ color: 'var(--accent-bright)' }}>
+              {typeof unreadNotifications === 'number' ? `${unreadNotifications} unread` : '—'}
             </span>
           </div>
-          {/* Wraps so the three-mode switcher drops to its own line on narrow
-              screens rather than pushing past the card edge. */}
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800/80 pt-2">
-            <span className="text-slate-400">COLOR MODE:</span>
+            <span className="flex items-center gap-2 text-slate-400"><CalendarDays className="h-3.5 w-3.5" /> Role</span>
+            <span className="font-semibold uppercase" style={{ color: 'var(--accent-bright)' }}>{roleName}</span>
+          </div>
+          <div className="flex items-center justify-between gap-2 border-t border-slate-800/80 pt-2">
+            <span className="text-slate-400">Theme</span>
             <ThemeSwitcher />
           </div>
         </div>

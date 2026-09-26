@@ -24,7 +24,7 @@ export const TodayRoutine = ({ routine, loading = false }: TodayRoutineProps) =>
       <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 font-mono text-xs">
         <h2 className="text-slate-300 flex items-center gap-1.5 font-bold uppercase tracking-wider">
           <CalendarDays className="h-4 w-4" style={{ color: 'var(--accent-bright)' }} />
-          Today&apos;s Timetable
+          Today&apos;s classes
         </h2>
         <span
           className="text-[10px] tracking-wider uppercase font-semibold"
@@ -46,7 +46,7 @@ export const TodayRoutine = ({ routine, loading = false }: TodayRoutineProps) =>
           <div>
             <p className="text-sm font-medium text-slate-300">No classes scheduled today</p>
             <p className="mt-1 text-xs font-mono text-slate-500">
-              Nothing is published in the timetable for your enrolments.
+              No classes are published for your enrolled courses.
             </p>
           </div>
           <Link

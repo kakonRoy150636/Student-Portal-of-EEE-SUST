@@ -32,7 +32,7 @@ export const QuickStats = ({ data, loading = false }: QuickStatsProps) => {
             ? `${data?.attended} of ${data?.total_classes} classes recorded`
             : 'No attendance has been recorded yet'
         }
-        tag="MEASURED // ATTENDANCE"
+        tag="ACADEMIC PROGRESS"
         tone={
           data?.below_attendance_threshold === true ? 'warn' : hasAttendance ? 'accent' : 'muted'
         }
@@ -44,7 +44,7 @@ export const QuickStats = ({ data, loading = false }: QuickStatsProps) => {
         value={loading ? undefined : `${(data?.credit_hours ?? 0).toFixed(1)} CR`}
         icon={<BookOpen className="h-5 w-5" />}
         subtitle={`${data?.enrolled_courses ?? 0} course${data?.enrolled_courses === 1 ? '' : 's'} enrolled`}
-        tag="MEASURED // ENROLMENT"
+        tag="CURRENT SEMESTER"
         loading={loading}
       />
       <StatCard
@@ -56,7 +56,7 @@ export const QuickStats = ({ data, loading = false }: QuickStatsProps) => {
             ? 'See the timetable below'
             : 'Nothing scheduled in today\'s timetable'
         }
-        tag="MEASURED // SCHEDULE"
+        tag="TODAY'S SCHEDULE"
         tone={data?.today_classes ? 'accent' : 'muted'}
         loading={loading}
         href="/schedule"
@@ -66,7 +66,7 @@ export const QuickStats = ({ data, loading = false }: QuickStatsProps) => {
         value={loading ? undefined : data?.opportunities ?? 0}
         icon={<Briefcase className="h-5 w-5" />}
         subtitle="Verified, deadline not passed"
-        tag="MEASURED // CAREER"
+        tag="CAREER PORTAL"
         tone={data?.opportunities ? 'accent' : 'muted'}
         loading={loading}
         href="/career"

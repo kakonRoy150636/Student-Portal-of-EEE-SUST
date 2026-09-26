@@ -2,53 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Three color modes, all graded from the same campus photograph ──────────
-   graphite : steel / blue accents (default, matches the photo's shadow floor)
-   brass    : warm brass + copper accents
-   midnight : violet / aurora accents, deepest plate
-   Every mode overrides the same variables, so components never branch on the
-   mode name — they just read --accent-* / --plate-image. */
+/* ── Educational premium theme tokens ──────────────────────────────────────
+   Navy gives the portal an academic anchor; amber carries the SUST identity
+   without turning the interface into a bright red/yellow brand treatment. */
 :root,
 [data-theme='graphite'] {
   --plate-image: url('./assets/images/dashboard-atmosphere.jpg');
-  --accent: #5b96e2;
-  --accent-bright: #8fc0f2;
-  --accent-deep: #3a6fb5;
-  --accent-soft: rgba(91, 150, 226, 0.12);
-  --accent-edge: rgba(143, 192, 242, 0.22);
-  --plate-veil: rgba(5, 11, 20, 0.72);
-  --plate-tint: rgba(58, 111, 181, 0.18);
+  --accent: #c9a227;
+  --accent-bright: #e2c45c;
+  --accent-deep: #927516;
+  --accent-soft: rgba(201, 162, 39, 0.13);
+  --accent-edge: rgba(226, 196, 92, 0.28);
+  --plate-veil: rgba(15, 37, 87, 0.86);
+  --plate-tint: rgba(15, 37, 87, 0.28);
 }
 
 [data-theme='brass'] {
   --plate-image: url('./assets/images/dashboard-atmosphere-brass.jpg');
-  --accent: #c99a4e;
-  --accent-bright: #e8c48a;
-  --accent-deep: #9a7333;
-  --accent-soft: rgba(201, 154, 78, 0.14);
-  --accent-edge: rgba(232, 196, 138, 0.24);
-  --plate-veil: rgba(12, 9, 5, 0.74);
-  --plate-tint: rgba(154, 115, 51, 0.2);
+  --accent: #c9a227;
+  --accent-bright: #edcf70;
+  --accent-deep: #927516;
+  --accent-soft: rgba(201, 162, 39, 0.14);
+  --accent-edge: rgba(237, 207, 112, 0.28);
+  --plate-veil: rgba(15, 37, 87, 0.88);
+  --plate-tint: rgba(10, 66, 74, 0.22);
 }
 
 [data-theme='midnight'] {
   --plate-image: url('./assets/images/dashboard-atmosphere-midnight.jpg');
-  --accent: #8b7fe8;
-  --accent-bright: #b6adf7;
-  --accent-deep: #5f52b8;
-  --accent-soft: rgba(139, 127, 232, 0.14);
-  --accent-edge: rgba(182, 173, 247, 0.24);
-  --plate-veil: rgba(6, 6, 18, 0.78);
-  --plate-tint: rgba(95, 82, 184, 0.22);
+  --accent: #c9a227;
+  --accent-bright: #e2c45c;
+  --accent-deep: #927516;
+  --accent-soft: rgba(201, 162, 39, 0.13);
+  --accent-edge: rgba(226, 196, 92, 0.28);
+  --plate-veil: rgba(11, 17, 32, 0.9);
+  --plate-tint: rgba(15, 37, 87, 0.25);
 }
 
 @layer base {
   body {
-    background-color: #050B14;
-    color: #E2E8F0;
+    background-color: #0b1120;
+    color: #e5e7eb;
     font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.6;
     overflow-x: hidden;
     min-height: 100vh;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: Georgia, 'Times New Roman', serif;
+    letter-spacing: 0;
   }
 }
 
@@ -99,16 +104,17 @@
 
 /* Sci-Fi HUD কার্ড ফ্রেম */
 .hud-box {
-  background: rgba(8, 16, 28, 0.75);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(0, 240, 255, 0.15);
+  background: rgba(11, 17, 32, 0.82);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(226, 232, 240, 0.14);
   position: relative;
-  transition: all 0.3s ease;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 
 .hud-box:hover {
-  border-color: rgba(255, 30, 86, 0.4);
-  box-shadow: 0 0 20px rgba(255, 30, 86, 0.1);
+  border-color: var(--accent-edge);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+  transform: translateY(-1px);
 }
 
 /* টেকনিক্যাল কর্নার ব্র্যাকেট */
@@ -123,8 +129,8 @@
   left: -1px;
   width: 8px;
   height: 8px;
-  border-top: 2px solid #FF1E56;
-  border-left: 2px solid #FF1E56;
+  border-top: 1px solid var(--accent);
+  border-left: 1px solid var(--accent);
   pointer-events: none;
 }
 
@@ -135,15 +141,172 @@
   right: -1px;
   width: 8px;
   height: 8px;
-  border-bottom: 2px solid #00F0FF;
-  border-right: 2px solid #00F0FF;
+  border-bottom: 1px solid var(--accent);
+  border-right: 1px solid var(--accent);
   pointer-events: none;
 }
 
 /* সাইবার গ্রিড প্যাটার্ন */
 .cyber-grid-bg {
   background-image: 
-    linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(rgba(226, 196, 92, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(226, 196, 92, 0.03) 1px, transparent 1px);
   background-size: 40px 40px;
+}
+
+/* Editorial student home: a visual campus lead-in with a floating academic panel. */
+.student-editorial-page {
+  --editorial-ink: #0f2557;
+  --editorial-paper: #f7f5ef;
+}
+
+.editorial-hero {
+  min-height: min(620px, 68vh);
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  background: var(--editorial-ink);
+}
+
+.editorial-hero-image,
+.editorial-hero-wash {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.editorial-hero-image {
+  object-fit: cover;
+  object-position: center;
+  filter: saturate(0.82) contrast(1.04);
+}
+
+.editorial-hero-wash {
+  background:
+    linear-gradient(90deg, rgba(8, 21, 51, 0.82) 0%, rgba(8, 21, 51, 0.44) 46%, rgba(8, 21, 51, 0.06) 100%),
+    linear-gradient(180deg, rgba(8, 21, 51, 0.15), rgba(8, 21, 51, 0.5));
+}
+
+.editorial-hero-topline,
+.editorial-hero-meta {
+  position: absolute;
+  left: clamp(1.25rem, 4vw, 3.5rem);
+  right: clamp(1.25rem, 4vw, 3.5rem);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.editorial-hero-topline {
+  top: 1.5rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.editorial-hero-meta {
+  bottom: 1.5rem;
+  color: rgba(255, 255, 255, 0.66);
+}
+
+.editorial-hero-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 48rem;
+  padding: clamp(8rem, 18vh, 12rem) clamp(1.25rem, 7vw, 6rem) 7rem;
+}
+
+.editorial-kicker {
+  color: var(--accent-bright);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.editorial-hero h1 {
+  margin-top: 1rem;
+  font-size: clamp(3.5rem, 8vw, 7.6rem);
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+}
+
+.editorial-hero-description {
+  max-width: 25rem;
+  margin-top: 1.75rem;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.editorial-snapshot {
+  position: relative;
+  z-index: 2;
+  margin: -5rem clamp(0.75rem, 5vw, 4rem) 0;
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+  background: var(--editorial-paper);
+  color: var(--editorial-ink);
+  box-shadow: 0 18px 45px rgba(2, 12, 33, 0.2);
+}
+
+.editorial-snapshot .hud-box {
+  background: #10295c;
+  border-color: rgba(15, 37, 87, 0.15);
+}
+
+.editorial-snapshot .hud-box:hover {
+  border-color: var(--accent);
+}
+
+.editorial-snapshot-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.editorial-snapshot h2 {
+  margin-top: 0.35rem;
+  color: var(--editorial-ink);
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+  line-height: 1;
+}
+
+.editorial-snapshot-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #526078;
+  font-size: 0.75rem;
+}
+
+.editorial-status-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #4c9a6b;
+}
+
+@media (max-width: 640px) {
+  .editorial-hero {
+    min-height: 540px;
+  }
+
+  .editorial-hero-meta {
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .editorial-snapshot {
+    margin-top: -3rem;
+  }
+
+  .editorial-snapshot-heading {
+    align-items: start;
+    flex-direction: column;
+  }
 }

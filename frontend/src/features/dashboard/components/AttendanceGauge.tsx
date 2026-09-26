@@ -30,7 +30,7 @@ export const AttendanceGauge = ({ data, loading = false }: AttendanceGaugeProps)
       <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 font-mono text-xs">
         <span className="text-slate-300 flex items-center gap-1.5 font-bold uppercase tracking-wider">
           <Crosshair className="h-4 w-4" style={{ color: 'var(--accent-bright)' }} />
-          Attendance Standing
+          Attendance overview
         </span>
         {!loading && hasData && (
           <span
@@ -42,7 +42,7 @@ export const AttendanceGauge = ({ data, loading = false }: AttendanceGaugeProps)
             }}
           >
             <ShieldCheck className="h-3 w-3" />
-            {below ? 'BELOW 75%' : 'CLEARANCE GRANTED'}
+            {below ? 'Below 75%' : 'On track'}
           </span>
         )}
       </div>
@@ -85,17 +85,17 @@ export const AttendanceGauge = ({ data, loading = false }: AttendanceGaugeProps)
 
         <div className="flex-1 space-y-2.5 font-mono text-xs w-full">
           <div className="flex justify-between rounded bg-slate-900/80 border border-slate-800 p-2">
-            <span className="text-slate-400">THRESHOLD REQUIRED:</span>
-            <span className="font-bold text-slate-200">{THRESHOLD}% MIN</span>
+            <span className="text-slate-400">Minimum target</span>
+            <span className="font-bold text-slate-200">{THRESHOLD}%</span>
           </div>
           <div className="flex justify-between rounded bg-slate-900/80 border border-slate-800 p-2">
-            <span className="text-slate-400">CLASSES RECORDED:</span>
+            <span className="text-slate-400">Classes recorded</span>
             <span className="font-bold text-slate-200">{data?.total_classes ?? 0}</span>
           </div>
           <div className="flex justify-between rounded bg-slate-900/80 border border-slate-800 p-2">
-            <span className="text-slate-400">ELIGIBILITY:</span>
+            <span className="text-slate-400">Current standing</span>
             <span className="font-bold" style={{ color: below ? '#FB7185' : 'var(--accent-bright)' }}>
-              {hasData ? (below ? 'AT RISK' : 'PERMITTED') : 'UNDETERMINED'}
+              {hasData ? (below ? 'Needs attention' : 'On track') : 'Not available'}
             </span>
           </div>
         </div>
@@ -103,8 +103,8 @@ export const AttendanceGauge = ({ data, loading = false }: AttendanceGaugeProps)
 
       <div className="pt-3 border-t border-slate-800/80 text-[10px] font-mono text-slate-500">
         {hasData
-          ? `Source: attendance_records // ${data?.attended} present of ${data?.total_classes} recorded`
-          : 'Source: attendance_records // no sessions recorded for your enrolments yet'}
+          ? `${data?.attended} present of ${data?.total_classes} recorded attendance classes`
+          : 'No attendance sessions have been recorded for your enrolled courses yet'}
       </div>
     </div>
   );
