@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en" class="dark" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <!-- Department crest. A small opaque copy lives in /public because a
@@ -8,9 +8,16 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/dept-crest-32.png" />
     <link rel="apple-touch-icon" href="/dept-crest-180.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1120" />
     <title>SUST EEE Smart Student Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
   </head>
-  <body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen">
+  <body class="min-h-screen bg-[var(--bg)] font-sans text-[var(--text)] antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

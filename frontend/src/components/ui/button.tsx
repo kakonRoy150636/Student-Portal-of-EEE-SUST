@@ -1,28 +1,34 @@
-import * as React from "react"
-import { cn } from "@/lib/utils"
+import * as React from 'react';
+import { cn } from '@/lib/utils';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "default" | "outline" | "ghost" | "secondary" | "destructive";
-  size?: "default" | "sm" | "lg" | "icon";
+  variant?: 'default' | 'outline' | 'ghost' | 'secondary' | 'destructive';
+  size?: 'default' | 'sm' | 'lg' | 'icon';
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "default", size = "default", ...props }, ref) => (
+  ({ className, variant = 'default', size = 'default', type = 'button', ...props }, ref) => (
     <button
       ref={ref}
+      type={type}
       className={cn(
-        "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50",
-        variant === "default" && "bg-emerald-600 text-white hover:bg-emerald-700",
-        variant === "outline" && "border border-slate-200 bg-transparent hover:bg-slate-100 dark:border-slate-800 dark:hover:bg-slate-800",
-        variant === "ghost" && "hover:bg-slate-100 dark:hover:bg-slate-800",
-        variant === "destructive" && "bg-rose-600 text-white hover:bg-rose-700",
-        size === "default" && "h-9 px-4 py-2",
-        size === "sm" && "h-8 rounded-md px-3 text-xs",
-        size === "icon" && "h-9 w-9",
-        className
+        'inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-semibold transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]',
+        'disabled:pointer-events-none disabled:opacity-50',
+        variant === 'default' && 'bg-[var(--primary)] text-[var(--primary-fg)] hover:opacity-90',
+        variant === 'outline' &&
+          'border border-[var(--border)] bg-transparent text-[var(--text)] hover:bg-[var(--surface-muted)]',
+        variant === 'ghost' && 'bg-transparent text-[var(--text-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--text)]',
+        variant === 'secondary' && 'bg-[var(--accent-soft)] text-[var(--accent-bright)] hover:bg-[var(--accent-edge)]',
+        variant === 'destructive' && 'bg-[var(--danger)] text-white hover:opacity-90',
+        size === 'default' && 'h-10 px-4 py-2',
+        size === 'sm' && 'h-8 rounded-md px-3 text-xs',
+        size === 'lg' && 'h-11 px-5',
+        size === 'icon' && 'h-10 w-10',
+        className,
       )}
       {...props}
     />
-  )
-)
-Button.displayName = "Button"
+  ),
+);
+Button.displayName = 'Button';

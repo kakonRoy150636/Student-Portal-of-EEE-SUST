@@ -1,26 +1,62 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: ["class"],
-  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  darkMode: ['selector', '[data-theme="dark"]'],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
+        bg: 'var(--bg)',
+        surface: 'var(--surface)',
+        ink: 'var(--text)',
+        muted: 'var(--text-muted)',
+        subtle: 'var(--text-subtle)',
+        line: 'var(--border)',
         primary: {
-          DEFAULT: '#0F2557',
-          foreground: '#ffffff'
+          DEFAULT: 'var(--primary)',
+          foreground: 'var(--primary-fg)',
         },
         accent: {
-          DEFAULT: '#C9A227',
-          bright: '#E2C45C',
-          deep: '#927516',
-          soft: 'rgba(201, 162, 39, 0.13)',
-          edge: 'rgba(226, 196, 92, 0.28)'
+          DEFAULT: 'var(--accent)',
+          bright: 'var(--accent-bright)',
+          deep: 'var(--accent-deep)',
+          soft: 'var(--accent-soft)',
+          edge: 'var(--accent-edge)',
+        },
+        danger: {
+          DEFAULT: 'var(--danger)',
+          soft: 'var(--danger-soft)',
+        },
+        success: {
+          DEFAULT: 'var(--success)',
+          soft: 'var(--success-soft)',
+        },
+        warn: {
+          DEFAULT: 'var(--warn)',
+          soft: 'var(--warn-soft)',
         },
         sand: '#D4A017',
-        ink: '#0B1120',
-        slate1: '#A8B3C7'
-      }
+        slate1: 'var(--text-muted)',
+      },
+      fontFamily: {
+        sans: ['"DM Sans"', 'system-ui', 'sans-serif'],
+        display: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
+        mono: ['"DM Sans"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+      },
+      fontSize: {
+        xs: ['12px', { lineHeight: '18px' }],
+        sm: ['14px', { lineHeight: '20px' }],
+        base: ['16px', { lineHeight: '24px' }],
+        lg: ['20px', { lineHeight: '28px' }],
+        xl: ['28px', { lineHeight: '34px' }],
+        '2xl': ['40px', { lineHeight: '46px' }],
+      },
+      boxShadow: {
+        card: 'var(--shadow)',
+      },
+      borderRadius: {
+        card: '0.875rem',
+      },
     },
   },
   plugins: [],
-}
+};

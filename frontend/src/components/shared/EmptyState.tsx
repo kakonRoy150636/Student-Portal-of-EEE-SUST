@@ -1,8 +1,17 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 
-export const EmptyState = ({ title, description }: { title: string; description: string }) => (
-  <div className="text-center p-8 border rounded-lg bg-white dark:bg-slate-900 space-y-2">
-    <h4 className="font-bold text-slate-700 dark:text-slate-300">{title}</h4>
-    <p className="text-xs text-slate-400">{description}</p>
+export const EmptyState = ({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) => (
+  <div className="surface px-6 py-10 text-center">
+    <h4 className="font-display text-base font-semibold text-[var(--text)]">{title}</h4>
+    <p className="mx-auto mt-1 max-w-md text-sm text-[var(--text-muted)]">{description}</p>
+    {action && <div className="mt-4 flex justify-center">{action}</div>}
   </div>
 );

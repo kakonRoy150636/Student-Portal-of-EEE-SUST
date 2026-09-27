@@ -1,5 +1,6 @@
 import { api } from '@/lib/axios';
+import type { ClassSchedule } from '@/types/academic';
 
 export const scheduleApi = {
-  getMyRoutine: () => api.get('/schedules/my-routine'),
+  getMyRoutine: () => api.get<ClassSchedule[]>('/schedules/my-routine'),
 };

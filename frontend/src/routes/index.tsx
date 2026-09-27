@@ -5,6 +5,7 @@ import { AuthLayout } from '@/layouts/AuthLayout';
 import { ProtectedRoute } from './ProtectedRoute';
 import { ErrorBoundary } from './ErrorBoundary';
 import { UserRole } from '@/types/auth';
+import { RouteFallback } from '@/components/shared/PageSkeleton';
 
 const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'));
 const RegisterPage = lazy(() => import('@/features/auth/pages/RegisterPage'));
@@ -20,7 +21,7 @@ const AIAssistantPage = lazy(() => import('@/features/ai-assistant/pages/AIAssis
 const AdminPanelPage = lazy(() => import('@/features/admin/pages/AdminPanelPage'));
 const NotificationsPage = lazy(() => import('@/features/notifications/pages/NotificationsPage'));
 
-const Fallback = () => <div className="p-8 text-center text-xs text-slate-400">Loading module...</div>;
+const Fallback = RouteFallback;
 
 export const router = createBrowserRouter([
   {

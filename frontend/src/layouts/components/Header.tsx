@@ -1,31 +1,25 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { Bell, LogOut, Menu, Search } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar } from '@/components/shared/Avatar';
-import { Bell, LogOut } from 'lucide-react';
+import { ThemeSwitcher } from '@/components/shared/ThemeSwitcher';
 import { api } from '@/lib/axios';
+import { CommandSearch } from './CommandSearch';
+import { ROLE_LABEL } from '@/layouts/nav';
 
-interface NotificationRow {
+export interface NotificationRow {
   id: number;
   title: string;
   body: string;
   is_read: boolean;
 }
 
-export const Header = () => {
+export const Header = ({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) => {
   const { user, logout } = useAuth();
+  const [searchOpen, setSearchOpen] = useState(false);
 
-  /**
-   * Replaces the old decorative bell, which had no click handler and an
-   * always-animating unread dot -- so it asserted unread mail that may not
-   * exist. The count is now the real number of unread rows for this user,
-   * and the dot only appears when that count is greater than zero.
-   *
-   * The decorative "query database (Ctrl + K)" input was removed rather than
-   * left in place: it had no handler, so it looked like a working search and
-   * silently did nothing.
-   */
   const notifications = useQuery({
     queryKey: ['notifications'],
     queryFn: async () => (await api.get<NotificationRow[]>('/notifications')).data,
@@ -35,83 +29,125 @@ export const Header = () => {
   const rows = notifications.data ?? [];
   const unread = rows.filter((n) => !n.is_read).length;
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
-    <header className="h-16 border-b border-slate-800/80 bg-[#070D18]/80 backdrop-blur-xl px-8 flex items-center justify-between sticky top-0 z-30 font-mono">
-      <div className="flex items-center gap-3 min-w-0">
-        <span className="text-[11px] uppercase tracking-widest text-slate-500 truncate">
-          {user?.role ? user.role.replace('_', ' ').toUpperCase() : ''} CONSOLE
-        </span>
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg)]/85 px-4 backdrop-blur-xl sm:px-6">
+      <div className="flex min-w-0 items-center gap-2">
+        <button
+          type="button"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] md:hidden"
+          onClick={onOpenMobileNav}
+          aria-label="Open navigation"
+          title="Open navigation"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
+        <div className="hidden min-w-0 sm:block">
+          <p className="truncate text-sm font-semibold text-[var(--text)]">
+            {user?.role ? ROLE_LABEL[user.role] ?? user.role : 'Portal'}
+          </p>
+          <p className="truncate text-xs text-[var(--text-muted)]">{user?.identifier || 'SUST EEE'}</p>
+        </div>
       </div>
 
-      <div className="flex items-center gap-5">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <button
+          type="button"
+          onClick={() => setSearchOpen(true)}
+          className="hidden h-10 items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--text-muted)] hover:text-[var(--text)] md:inline-flex"
+          aria-label="Search pages"
+          title="Search pages (Ctrl+K)"
+        >
+          <Search className="h-4 w-4" />
+          <span>Search</span>
+          <kbd className="rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] text-[var(--text-subtle)]">
+            Ctrl K
+          </kbd>
+        </button>
+        <button
+          type="button"
+          onClick={() => setSearchOpen(true)}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] md:hidden"
+          aria-label="Search pages"
+          title="Search pages"
+        >
+          <Search className="h-4 w-4" />
+        </button>
+
+        <ThemeSwitcher className="hidden lg:inline-flex" />
+
         <Link
           to="/notifications"
-          className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-800 bg-slate-900/80 text-slate-300 hover:border-[var(--accent-edge)] transition-colors"
+          className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)]"
           aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+          title="Notifications"
         >
           <Bell className="h-4 w-4" />
           {unread > 0 && (
-            <span
-              className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center"
-              style={{ backgroundColor: 'var(--accent)', color: '#050B14' }}
-            >
+            <span className="absolute -right-1.5 -top-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-bold text-[var(--primary-fg)]">
               {unread > 99 ? '99+' : unread}
             </span>
           )}
         </Link>
 
-        <div className="h-6 w-px bg-slate-800" />
-
-        <div className="flex items-center gap-3">
+        <div className="hidden items-center gap-2 sm:flex">
           <Avatar
             avatarKey={user?.avatar_key}
             fullName={user?.full_name}
             className="h-9 w-9"
             alt={user?.full_name ? `${user.full_name}'s profile photo` : null}
           />
-          <div className="hidden text-left sm:block">
-            <p className="text-xs font-bold text-white uppercase">{user?.full_name || 'Guest'}</p>
-            <p className="text-[10px] text-slate-500">{user?.identifier || '—'}</p>
+          <div className="hidden text-left lg:block">
+            <p className="text-sm font-semibold text-[var(--text)]">{user?.full_name || 'Guest'}</p>
+            <p className="text-xs text-[var(--text-muted)]">{user?.identifier || '—'}</p>
           </div>
         </div>
 
         <button
+          type="button"
           onClick={logout}
-          title="Disconnect Session"
-          aria-label="Disconnect Session"
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-800 bg-slate-900/80 text-slate-400 hover:border-[#FB7185]/40 hover:text-[#FB7185] transition-all"
+          title="Sign out"
+          aria-label="Sign out"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
         >
           <LogOut className="h-4 w-4" />
         </button>
       </div>
+
+      <CommandSearch open={searchOpen} onOpenChange={setSearchOpen} />
     </header>
   );
 };
 
-/** Small shared panel used by the header popover and the notifications route. */
+/** Shared list used by the notifications route. */
 export const NotificationList = ({ rows }: { rows: NotificationRow[] }) => {
   if (!rows.length) {
-    return (
-      <p className="px-4 py-6 text-center text-xs font-mono text-slate-500">
-        No notifications for your account.
-      </p>
-    );
+    return <p className="px-4 py-8 text-center text-sm text-[var(--text-muted)]">No notifications for your account.</p>;
   }
   return (
-    <ul className="divide-y divide-slate-800/80">
+    <ul className="divide-y divide-[var(--border)]">
       {rows.map((n) => (
         <li key={n.id} className="px-4 py-3">
           <div className="flex items-start gap-2">
             {!n.is_read && (
               <span
-                className="mt-1.5 h-1.5 w-1.5 rounded-full shrink-0"
-                style={{ backgroundColor: 'var(--accent)' }}
+                className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]"
                 aria-label="Unread"
               />
             )}
             <div className="min-w-0">
-              <p className="text-xs font-bold text-slate-100">{n.title}</p>
-              <p className="text-[11px] font-mono text-slate-400 break-words">{n.body}</p>
+              <p className="text-sm font-semibold text-[var(--text)]">{n.title}</p>
+              <p className="break-words text-sm text-[var(--text-muted)]">{n.body}</p>
             </div>
           </div>
         </li>

@@ -1,26 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { Breadcrumbs } from './components/Breadcrumbs';
-import { DepartmentWatermark } from '@/components/shared/DepartmentWatermark';
+import { MobileBottomNav, MobileDrawer } from './components/MobileNav';
 
-export const AppLayout = () => (
-  <div className="flex min-h-screen bg-[#050B14] text-slate-100 relative">
-    {/* সিনেমাটিক প্লেট — ফটো থেকে গ্রেড করা, থিম অনুযায়ী বদলায় */}
-    <div className="dashboard-plate" aria-hidden="true" />
+export const AppLayout = () => {
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-    {/* ব্যাকগ্রাউন্ড লোগো ওয়াটারমার্ক */}
-    <DepartmentWatermark />
+  return (
+    <div className="relative flex min-h-screen bg-[var(--bg)] text-[var(--text)]">
+      <div className="dashboard-plate" aria-hidden="true" />
 
-    <Sidebar />
+      <Sidebar />
+      <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} />
 
-    <div className="flex-1 flex flex-col min-w-0 z-10 relative">
-      <Header />
-      <main className="p-8 flex-1 overflow-y-auto max-w-7xl mx-auto w-full">
-        <Breadcrumbs />
-        <Outlet />
-      </main>
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        <Header onOpenMobileNav={() => setMobileOpen(true)} />
+        <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 py-6 pb-24 sm:px-6 md:pb-8">
+          <Breadcrumbs />
+          <Outlet />
+        </main>
+      </div>
+      <MobileBottomNav />
     </div>
-  </div>
-);
+  );
+};

@@ -136,9 +136,9 @@ export default function RegisterPage() {
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-emerald-500">New account</p>
-        <h1 className="text-2xl font-bold">Join the EEE Portal</h1>
-        <p className="text-xs text-slate-500 mt-1">Teacher, CR and ER accounts require administrator approval.</p>
+        <p className="kicker">New account</p>
+        <h1 className="font-display text-xl font-bold text-[var(--text)]">Join the EEE Portal</h1>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">Teacher, CR and ER accounts require administrator approval.</p>
       </div>
       <div className="grid grid-cols-4 gap-2">
         {(['student', 'cr', 'teacher', 'er'] as Role[]).map((option) => (
@@ -156,7 +156,7 @@ export default function RegisterPage() {
 
         {/* Profile photo: chosen file is previewed and its size stated, so it is
             obvious what will be saved before the account is created. */}
-        <div className="flex items-center gap-4 rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+        <div className="flex items-center gap-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
           {preview ? (
             <img src={preview} alt="Selected profile photo preview" className="h-16 w-16 rounded-lg object-cover" />
           ) : (
@@ -171,9 +171,9 @@ export default function RegisterPage() {
               accept={ACCEPTED_AVATAR_TYPES}
               aria-describedby="avatar-help"
               onChange={(event) => handleAvatar(event.target.files?.[0] || null)}
-              className="block w-full text-xs text-slate-500 file:mr-3 file:rounded-md file:border-0 file:bg-slate-200 file:px-3 file:py-1.5 file:text-xs file:font-medium dark:file:bg-slate-800"
+              className="block w-full text-xs text-[var(--text-muted)] file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-muted)] file:px-3 file:py-1.5 file:text-xs file:font-medium"
             />
-            <p id="avatar-help" className="text-[11px] text-slate-500">
+            <p id="avatar-help" className="text-[11px] text-[var(--text-muted)]">
               {avatar ? `${avatar.name} · ${formatBytes(avatar.size)}` : `JPG, PNG, WebP or GIF up to ${formatBytes(MAX_AVATAR_BYTES)}.`}
             </p>
           </div>
@@ -198,7 +198,7 @@ export default function RegisterPage() {
         {message && <p role="status" className="text-xs text-emerald-500">{message}</p>}
         <Button type="submit" className="w-full" disabled={submitting}>{submitting ? 'Creating account...' : 'Create account'}</Button>
       </form>
-      <p className="text-center text-xs text-slate-500">Already registered? <Link className="text-emerald-500 hover:underline" to="/auth/login">Sign in</Link></p>
+      <p className="text-center text-sm text-[var(--text-muted)]">Already registered? <Link className="font-medium text-[var(--accent-bright)] hover:underline" to="/auth/login">Sign in</Link></p>
     </div>
   );
 }

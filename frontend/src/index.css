@@ -2,48 +2,90 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Educational premium theme tokens ──────────────────────────────────────
-   Navy gives the portal an academic anchor; amber carries the SUST identity
-   without turning the interface into a bright red/yellow brand treatment. */
+/* ── Modern academic utility tokens ────────────────────────────────────────
+   One dark navy system and one light paper system. Gold is the SUST accent,
+   not a second competing theme. Components read these variables so light and
+   dark stay on the same language. */
 :root,
-[data-theme='graphite'] {
-  --plate-image: url('./assets/images/dashboard-atmosphere.jpg');
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0b1120;
+  --bg-elevated: #111827;
+  --surface: #151c2c;
+  --surface-muted: #101828;
+  --border: rgba(226, 232, 240, 0.12);
+  --text: #e8edf5;
+  --text-muted: #94a3b8;
+  --text-subtle: #6b7a90;
+  --primary: #c9a227;
+  --primary-fg: #0b1120;
   --accent: #c9a227;
   --accent-bright: #e2c45c;
-  --accent-deep: #927516;
-  --accent-soft: rgba(201, 162, 39, 0.13);
-  --accent-edge: rgba(226, 196, 92, 0.28);
-  --plate-veil: rgba(15, 37, 87, 0.86);
-  --plate-tint: rgba(15, 37, 87, 0.28);
-}
-
-[data-theme='brass'] {
-  --plate-image: url('./assets/images/dashboard-atmosphere-brass.jpg');
-  --accent: #c9a227;
-  --accent-bright: #edcf70;
   --accent-deep: #927516;
   --accent-soft: rgba(201, 162, 39, 0.14);
-  --accent-edge: rgba(237, 207, 112, 0.28);
-  --plate-veil: rgba(15, 37, 87, 0.88);
-  --plate-tint: rgba(10, 66, 74, 0.22);
+  --accent-edge: rgba(226, 196, 92, 0.3);
+  --danger: #fb7185;
+  --danger-soft: rgba(251, 113, 133, 0.12);
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.12);
+  --warn: #fbbf24;
+  --warn-soft: rgba(251, 191, 36, 0.12);
+  --focus: #e2c45c;
+  --ring: rgba(226, 196, 92, 0.38);
+  --shadow: 0 12px 32px rgba(2, 8, 23, 0.28);
+  --plate-image: url('./assets/images/dashboard-atmosphere.jpg');
+  --plate-veil: rgba(11, 17, 32, 0.88);
+  --plate-tint: rgba(15, 37, 87, 0.22);
 }
 
-[data-theme='midnight'] {
-  --plate-image: url('./assets/images/dashboard-atmosphere-midnight.jpg');
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f3efe6;
+  --bg-elevated: #fffdf8;
+  --surface: #fffdf8;
+  --surface-muted: #efe8d8;
+  --border: rgba(15, 37, 87, 0.12);
+  --text: #12203a;
+  --text-muted: #4b5b74;
+  --text-subtle: #6b7a90;
+  --primary: #0f2557;
+  --primary-fg: #ffffff;
   --accent: #c9a227;
-  --accent-bright: #e2c45c;
-  --accent-deep: #927516;
-  --accent-soft: rgba(201, 162, 39, 0.13);
-  --accent-edge: rgba(226, 196, 92, 0.28);
-  --plate-veil: rgba(11, 17, 32, 0.9);
-  --plate-tint: rgba(15, 37, 87, 0.25);
+  --accent-bright: #927516;
+  --accent-deep: #0f2557;
+  --accent-soft: rgba(201, 162, 39, 0.14);
+  --accent-edge: rgba(146, 117, 22, 0.28);
+  --danger: #be123c;
+  --danger-soft: rgba(190, 18, 60, 0.1);
+  --success: #047857;
+  --success-soft: rgba(4, 120, 87, 0.1);
+  --warn: #b45309;
+  --warn-soft: rgba(180, 83, 9, 0.1);
+  --focus: #0f2557;
+  --ring: rgba(15, 37, 87, 0.28);
+  --shadow: 0 10px 28px rgba(15, 37, 87, 0.08);
+  --plate-image: none;
+  --plate-veil: #f3efe6;
+  --plate-tint: transparent;
+}
+
+/* Older cinematic modes collapse onto the dark academic system. */
+[data-theme='graphite'],
+[data-theme='brass'],
+[data-theme='midnight'] {
+  color-scheme: dark;
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    background-color: #0b1120;
-    color: #e5e7eb;
-    font-family: 'Inter', system-ui, sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 16px;
     line-height: 1.6;
     overflow-x: hidden;
     min-height: 100vh;
@@ -52,261 +94,96 @@
   h1,
   h2,
   h3 {
-    font-family: Georgia, 'Times New Roman', serif;
-    letter-spacing: 0;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    letter-spacing: -0.03em;
+    color: var(--text);
+  }
+
+  h1 { font-size: 28px; line-height: 34px; font-weight: 700; }
+  h2 { font-size: 20px; line-height: 28px; font-weight: 600; }
+  h3 { font-size: 16px; line-height: 24px; font-weight: 600; }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--text);
   }
 }
 
-/* ── Cinematic dashboard plate ──────────────────────────────────────────────
-   The photograph itself, graded per mode, fixed behind the whole logged-in
-   shell. Layers top→bottom: accent tint, darkening veil, the plate, a base
-   fill so the page never flashes white while the JPEG decodes. */
+@layer components {
+  .surface {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.875rem;
+    box-shadow: var(--shadow);
+  }
+
+  .surface-muted {
+    background: var(--surface-muted);
+    border: 1px solid var(--border);
+    border-radius: 0.875rem;
+  }
+
+  .kicker {
+    color: var(--accent-bright);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  /* Quiet alias so leftover HUD class names keep working without decoration. */
+  .hud-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.875rem;
+    box-shadow: var(--shadow);
+  }
+
+  .corner-brackets::before,
+  .corner-brackets::after {
+    content: none;
+  }
+}
+
+/* Desktop-only atmosphere. Mobile stays a flat academic surface. */
 .dashboard-plate {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-color: #050b14;
-  background-image:
-    linear-gradient(180deg, var(--plate-tint) 0%, transparent 45%),
-    linear-gradient(180deg, var(--plate-veil) 0%, var(--plate-veil) 100%),
-    var(--plate-image);
-  background-size: cover, cover, cover;
-  background-position: center, center, center;
-  background-repeat: no-repeat;
-  /* Bleed the plate slightly so a small upscaled JPEG never shows its edges. */
-  transform: scale(1.04);
-  filter: saturate(1.05) contrast(1.03);
+  display: none;
 }
 
-/* Vignette + faint HUD grid, drawn above the photo but below the content. */
-.dashboard-plate::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(ellipse at 50% 0%, transparent 45%, rgba(0, 0, 0, 0.55) 100%),
-    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-  background-size: 100% 100%, 44px 44px, 44px 44px;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .dashboard-plate {
-    transition: background-image 0.4s ease, filter 0.4s ease;
+@media (min-width: 1024px) {
+  [data-theme='dark'] .dashboard-plate {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(180deg, var(--plate-tint) 0%, transparent 40%),
+      linear-gradient(180deg, var(--plate-veil) 0%, var(--plate-veil) 100%),
+      var(--plate-image);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
   }
 }
 
-/* Accent-driven chrome, so the HUD frame follows the active mode. */
-.hud-box {
-  border-color: var(--accent-edge);
-}
-
-/* Sci-Fi HUD কার্ড ফ্রেম */
-.hud-box {
-  background: rgba(11, 17, 32, 0.82);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(226, 232, 240, 0.14);
-  position: relative;
-  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
-}
-
-.hud-box:hover {
-  border-color: var(--accent-edge);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
-  transform: translateY(-1px);
-}
-
-/* টেকনিক্যাল কর্নার ব্র্যাকেট */
-.corner-brackets {
-  position: relative;
-}
-
-.corner-brackets::before {
-  content: '';
-  position: absolute;
-  top: -1px;
-  left: -1px;
-  width: 8px;
-  height: 8px;
-  border-top: 1px solid var(--accent);
-  border-left: 1px solid var(--accent);
-  pointer-events: none;
-}
-
-.corner-brackets::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  right: -1px;
-  width: 8px;
-  height: 8px;
-  border-bottom: 1px solid var(--accent);
-  border-right: 1px solid var(--accent);
-  pointer-events: none;
-}
-
-/* সাইবার গ্রিড প্যাটার্ন */
-.cyber-grid-bg {
-  background-image: 
-    linear-gradient(rgba(226, 196, 92, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(226, 196, 92, 0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-
-/* Editorial student home: a visual campus lead-in with a floating academic panel. */
-.student-editorial-page {
-  --editorial-ink: #0f2557;
-  --editorial-paper: #f7f5ef;
-}
-
-.editorial-hero {
-  min-height: min(620px, 68vh);
-  position: relative;
-  overflow: hidden;
-  color: #fff;
-  background: var(--editorial-ink);
-}
-
-.editorial-hero-image,
-.editorial-hero-wash {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.editorial-hero-image {
-  object-fit: cover;
-  object-position: center;
-  filter: saturate(0.82) contrast(1.04);
-}
-
-.editorial-hero-wash {
-  background:
-    linear-gradient(90deg, rgba(8, 21, 51, 0.82) 0%, rgba(8, 21, 51, 0.44) 46%, rgba(8, 21, 51, 0.06) 100%),
-    linear-gradient(180deg, rgba(8, 21, 51, 0.15), rgba(8, 21, 51, 0.5));
-}
-
-.editorial-hero-topline,
-.editorial-hero-meta {
-  position: absolute;
-  left: clamp(1.25rem, 4vw, 3.5rem);
-  right: clamp(1.25rem, 4vw, 3.5rem);
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-}
-
-.editorial-hero-topline {
-  top: 1.5rem;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.editorial-hero-meta {
-  bottom: 1.5rem;
-  color: rgba(255, 255, 255, 0.66);
-}
-
-.editorial-hero-copy {
-  position: relative;
-  z-index: 1;
-  max-width: 48rem;
-  padding: clamp(8rem, 18vh, 12rem) clamp(1.25rem, 7vw, 6rem) 7rem;
-}
-
-.editorial-kicker {
-  color: var(--accent-bright);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.editorial-hero h1 {
-  margin-top: 1rem;
-  font-size: clamp(3.5rem, 8vw, 7.6rem);
-  font-weight: 700;
-  line-height: 0.9;
-  letter-spacing: -0.04em;
-}
-
-.editorial-hero-description {
-  max-width: 25rem;
-  margin-top: 1.75rem;
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 0.95rem;
-  line-height: 1.7;
-}
-
-.editorial-snapshot {
-  position: relative;
-  z-index: 2;
-  margin: -5rem clamp(0.75rem, 5vw, 4rem) 0;
-  padding: clamp(1.25rem, 3vw, 2.5rem);
-  background: var(--editorial-paper);
-  color: var(--editorial-ink);
-  box-shadow: 0 18px 45px rgba(2, 12, 33, 0.2);
-}
-
-.editorial-snapshot .hud-box {
-  background: #10295c;
-  border-color: rgba(15, 37, 87, 0.15);
-}
-
-.editorial-snapshot .hud-box:hover {
-  border-color: var(--accent);
-}
-
-.editorial-snapshot-heading {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.editorial-snapshot h2 {
-  margin-top: 0.35rem;
-  color: var(--editorial-ink);
-  font-size: clamp(1.8rem, 3vw, 2.8rem);
-  line-height: 1;
-}
-
-.editorial-snapshot-note {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #526078;
-  font-size: 0.75rem;
-}
-
-.editorial-status-dot {
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: 999px;
-  background: #4c9a6b;
-}
-
-@media (max-width: 640px) {
-  .editorial-hero {
-    min-height: 540px;
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
 
-  .editorial-hero-meta {
-    flex-direction: column;
-    gap: 0.3rem;
-  }
-
-  .editorial-snapshot {
-    margin-top: -3rem;
-  }
-
-  .editorial-snapshot-heading {
-    align-items: start;
-    flex-direction: column;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

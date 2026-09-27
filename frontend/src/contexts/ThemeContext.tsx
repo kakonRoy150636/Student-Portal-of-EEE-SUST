@@ -1,21 +1,28 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 /**
- * Three "Instrument Panel" color modes, all graded from the same campus
- * photograph so the plate, accents and chrome always read as one image.
+ * Two academic color modes on the same token set.
  *
- *   graphite : default — blue/steel accents, the coolest of the three
- *   brass    : warm brass/copper accents
- *   midnight : deep violet/aurora accents, highest contrast
+ *   dark  : default — navy/charcoal surfaces, gold accent
+ *   light : paper/cream surfaces, navy primary, gold accent
  *
- * The mode is written to <html data-theme> so Tailwind + CSS vars pick it up,
- * and mirrored to localStorage so a reload (and the login screen) keeps it.
+ * Older graphite/brass/midnight values stored in localStorage map to dark so
+ * existing sessions do not land on an unknown theme.
+ *
+ * The mode is written to <html data-theme> and the `dark` class so both CSS
+ * variables and Tailwind `dark:` utilities stay aligned.
  */
-export const THEMES = ['graphite', 'brass', 'midnight'] as const;
+export const THEMES = ['dark', 'light'] as const;
 export type ThemeMode = (typeof THEMES)[number];
 
 const STORAGE_KEY = 'eee-portal-theme';
-const DEFAULT_THEME: ThemeMode = 'graphite';
+const DEFAULT_THEME: ThemeMode = 'dark';
+
+const LEGACY_THEMES: Record<string, ThemeMode> = {
+  graphite: 'dark',
+  brass: 'dark',
+  midnight: 'dark',
+};
 
 type ThemeContextValue = {
   theme: ThemeMode;
@@ -32,9 +39,10 @@ const readStoredTheme = (): ThemeMode => {
   if (typeof window === 'undefined') return DEFAULT_THEME;
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    return isThemeMode(stored) ? stored : DEFAULT_THEME;
+    if (isThemeMode(stored)) return stored;
+    if (stored && stored in LEGACY_THEMES) return LEGACY_THEMES[stored];
+    return DEFAULT_THEME;
   } catch {
-    // Private mode / disabled storage — fall back to the default silently.
     return DEFAULT_THEME;
   }
 };
@@ -42,11 +50,13 @@ const readStoredTheme = (): ThemeMode => {
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   const [theme, setThemeState] = useState<ThemeMode>(readStoredTheme);
 
-  // Reflect the mode on <html> so the CSS variable blocks in index.css apply.
   useEffect(() => {
     const root = document.documentElement;
     root.setAttribute('data-theme', theme);
-    root.style.colorScheme = theme === 'midnight' ? 'dark' : 'dark';
+    root.classList.toggle('dark', theme === 'dark');
+    root.style.colorScheme = theme;
+    const themeColor = theme === 'light' ? '#f3efe6' : '#0b1120';
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor);
     try {
       window.localStorage.setItem(STORAGE_KEY, theme);
     } catch {
@@ -73,7 +83,6 @@ export const useTheme = (): ThemeContextValue => {
 };
 
 export const THEME_LABELS: Record<ThemeMode, string> = {
-  graphite: 'Graphite',
-  brass: 'Brass',
-  midnight: 'Midnight',
+  dark: 'Dark',
+  light: 'Light',
 };

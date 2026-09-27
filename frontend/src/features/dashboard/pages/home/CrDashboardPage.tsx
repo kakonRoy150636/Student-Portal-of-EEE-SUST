@@ -10,11 +10,11 @@ export const CrDashboardPage = () => {
   const s = data?.student;
 
   return (
-    <div className="space-y-6 relative z-10">
+    <div className="space-y-6">
       <DashboardHero
-        consoleName="02 // CR CONSOLE"
         roleName="CLASS REPRESENTATIVE"
         unreadNotifications={s?.unread_notifications}
+        greetingHint="Class representative view of today’s schedule and attendance."
       />
       <QuickStats data={s} loading={isLoading} />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

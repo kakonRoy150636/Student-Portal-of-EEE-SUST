@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, Crosshair } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import type { StudentSummary } from '@/features/dashboard/types/dashboard';
 
 interface AttendanceGaugeProps {
@@ -9,14 +9,6 @@ interface AttendanceGaugeProps {
 
 const THRESHOLD = 75;
 
-/**
- * Attendance ring drawn from the real aggregate.
- *
- * The old version hardcoded `percentage = 88.5` and asserted "VERIFIED VIA
- * EEE RFID ROLL-CALL SYSTEM" for a portal that has no RFID hardware. Both the
- * number and that claim are gone: the arc is the same query the Attendance
- * page shows, and the footer states where the figure comes from.
- */
 export const AttendanceGauge = ({ data, loading = false }: AttendanceGaugeProps) => {
   const hasData = (data?.total_classes ?? 0) > 0;
   const percentage = hasData ? (data?.attendance_percentage ?? 0) : 0;
@@ -26,19 +18,15 @@ export const AttendanceGauge = ({ data, loading = false }: AttendanceGaugeProps)
   const below = data?.below_attendance_threshold === true;
 
   return (
-    <div className="hud-box corner-brackets rounded-xl p-5 flex flex-col">
-      <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 font-mono text-xs">
-        <span className="text-slate-300 flex items-center gap-1.5 font-bold uppercase tracking-wider">
-          <Crosshair className="h-4 w-4" style={{ color: 'var(--accent-bright)' }} />
-          Attendance overview
-        </span>
+    <section className="surface flex flex-col p-5">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
+        <h2 className="font-display text-base font-semibold text-[var(--text)]">Attendance summary</h2>
         {!loading && hasData && (
           <span
-            className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border"
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold"
             style={{
-              borderColor: below ? 'rgba(251,113,133,0.4)' : 'var(--accent-edge)',
-              backgroundColor: below ? 'rgba(251,113,133,0.1)' : 'var(--accent-soft)',
-              color: below ? '#FB7185' : 'var(--accent-bright)',
+              backgroundColor: below ? 'var(--danger-soft)' : 'var(--success-soft)',
+              color: below ? 'var(--danger)' : 'var(--success)',
             }}
           >
             <ShieldCheck className="h-3 w-3" />
@@ -47,17 +35,16 @@ export const AttendanceGauge = ({ data, loading = false }: AttendanceGaugeProps)
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-6 py-4">
+      <div className="flex flex-col items-center justify-center gap-6 py-4 sm:flex-row">
         <div className="relative flex items-center justify-center">
           <svg className="h-36 w-36 -rotate-90 transform" aria-hidden="true">
-            <circle cx="72" cy="72" r={radius} className="stroke-slate-800" strokeWidth="8" fill="transparent" />
+            <circle cx="72" cy="72" r={radius} stroke="var(--border)" strokeWidth="8" fill="transparent" />
             {hasData && (
               <circle
                 cx="72"
                 cy="72"
                 r={radius}
-                stroke={below ? '#FB7185' : 'var(--accent-bright)'}
-                className="transition-all duration-1000 ease-out"
+                stroke={below ? 'var(--danger)' : 'var(--accent)'}
                 strokeWidth="8"
                 strokeDasharray={circumference}
                 strokeDashoffset={strokeDashoffset}
@@ -66,46 +53,46 @@ export const AttendanceGauge = ({ data, loading = false }: AttendanceGaugeProps)
               />
             )}
           </svg>
-          <div className="absolute flex flex-col items-center font-mono">
+          <div className="absolute flex flex-col items-center">
             {loading ? (
-              <div className="h-7 w-16 animate-pulse rounded bg-slate-800/80" aria-hidden="true" />
+              <div className="h-7 w-16 animate-pulse rounded bg-[var(--surface-muted)]" aria-hidden="true" />
             ) : hasData ? (
               <>
-                <span className="text-2xl font-black text-white tabular-nums">{percentage}%</span>
-                <span className="text-[9px] uppercase tracking-widest text-slate-400">RECORDED</span>
+                <span className="font-display text-xl font-bold tabular-nums text-[var(--text)]">{percentage}%</span>
+                <span className="text-xs uppercase tracking-wide text-[var(--text-subtle)]">Recorded</span>
               </>
             ) : (
               <>
-                <span className="text-2xl font-black text-slate-500">—</span>
-                <span className="text-[9px] uppercase tracking-widest text-slate-500">NO DATA</span>
+                <span className="font-display text-xl font-bold text-[var(--text-subtle)]">—</span>
+                <span className="text-xs uppercase tracking-wide text-[var(--text-subtle)]">No data</span>
               </>
             )}
           </div>
         </div>
 
-        <div className="flex-1 space-y-2.5 font-mono text-xs w-full">
-          <div className="flex justify-between rounded bg-slate-900/80 border border-slate-800 p-2">
-            <span className="text-slate-400">Minimum target</span>
-            <span className="font-bold text-slate-200">{THRESHOLD}%</span>
+        <div className="w-full flex-1 space-y-2 text-sm">
+          <div className="flex justify-between rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2">
+            <span className="text-[var(--text-muted)]">Minimum target</span>
+            <span className="font-semibold text-[var(--text)]">{THRESHOLD}%</span>
           </div>
-          <div className="flex justify-between rounded bg-slate-900/80 border border-slate-800 p-2">
-            <span className="text-slate-400">Classes recorded</span>
-            <span className="font-bold text-slate-200">{data?.total_classes ?? 0}</span>
+          <div className="flex justify-between rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2">
+            <span className="text-[var(--text-muted)]">Classes recorded</span>
+            <span className="font-semibold text-[var(--text)]">{data?.total_classes ?? 0}</span>
           </div>
-          <div className="flex justify-between rounded bg-slate-900/80 border border-slate-800 p-2">
-            <span className="text-slate-400">Current standing</span>
-            <span className="font-bold" style={{ color: below ? '#FB7185' : 'var(--accent-bright)' }}>
+          <div className="flex justify-between rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2">
+            <span className="text-[var(--text-muted)]">Current standing</span>
+            <span className="font-semibold" style={{ color: below ? 'var(--danger)' : 'var(--accent-bright)' }}>
               {hasData ? (below ? 'Needs attention' : 'On track') : 'Not available'}
             </span>
           </div>
         </div>
       </div>
 
-      <div className="pt-3 border-t border-slate-800/80 text-[10px] font-mono text-slate-500">
+      <p className="border-t border-[var(--border)] pt-3 text-xs text-[var(--text-muted)]">
         {hasData
           ? `${data?.attended} present of ${data?.total_classes} recorded attendance classes`
           : 'No attendance sessions have been recorded for your enrolled courses yet'}
-      </div>
-    </div>
+      </p>
+    </section>
   );
 };

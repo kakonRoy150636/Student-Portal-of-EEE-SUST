@@ -1,37 +1,65 @@
 import React from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { PageSkeleton } from '@/components/shared/PageSkeleton';
 import { Button } from '@/components/ui/button';
-import { useEffect, useState } from 'react';
 import { authApi } from '@/features/auth/api/authApi';
 
+interface PendingUser {
+  id: string;
+  full_name: string;
+  email: string;
+  identifier: string;
+  role: string;
+}
+
 export default function AdminPanelPage() {
-  const [pending, setPending] = useState<any[]>([]);
-
-  useEffect(() => {
-    authApi.pendingApprovals().then(({ data }) => setPending(data)).catch(() => setPending([]));
-  }, []);
-
-  const approve = async (id: string) => {
-    await authApi.approveUser(id);
-    setPending((users) => users.filter((user) => user.id !== id));
-  };
+  const qc = useQueryClient();
+  const pending = useQuery({
+    queryKey: ['auth', 'pending-approvals'],
+    queryFn: async () => (await authApi.pendingApprovals()).data as PendingUser[],
+    retry: false,
+  });
+  const approve = useMutation({
+    mutationFn: (id: string) => authApi.approveUser(id),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['auth', 'pending-approvals'] }),
+        qc.invalidateQueries({ queryKey: ['dashboard', 'summary'] }),
+      ]);
+    },
+  });
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">System Administration</h1>
-      <Card>
-        <CardContent className="p-5">
-          <p className="font-bold text-sm">SUST EEE Administration Console</p>
-          <p className="text-xs text-slate-400 mt-1">Manage student batches, approve room allocations, configure semester offerings.</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="p-5 space-y-3">
-          <div><h2 className="font-bold text-sm">Pending account approvals</h2><p className="text-xs text-slate-400 mt-1">Teacher and CR accounts remain inactive until approved.</p></div>
-          {pending.length === 0 && <p className="text-xs text-slate-500">No pending approvals.</p>}
-          {pending.map((user) => <div key={user.id} className="flex items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800 pt-3"><div><p className="text-sm font-medium">{user.full_name}</p><p className="text-xs text-slate-500">{user.identifier} · {user.email} · {user.role}</p></div><Button size="sm" onClick={() => approve(user.id)}>Approve</Button></div>)}
-        </CardContent>
-      </Card>
+      <PageHeader
+        kicker="Administration"
+        title="System administration"
+        description="Approve pending teacher, CR, ER and alumni accounts. Catalogue work stays on the dashboard."
+      />
+      {pending.isLoading && <PageSkeleton cards={0} rows={4} />}
+      {pending.isError && (
+        <p className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]" role="alert">
+          Could not load the approval queue.
+        </p>
+      )}
+      {!pending.isLoading && !pending.isError && (pending.data ?? []).length === 0 && (
+        <EmptyState title="No pending approvals" description="Teacher and CR accounts remain inactive until approved." />
+      )}
+      <div className="space-y-3">
+        {(pending.data ?? []).map((user) => (
+          <article key={user.id} className="surface flex flex-wrap items-center justify-between gap-3 p-4">
+            <div>
+              <p className="text-sm font-semibold">{user.full_name}</p>
+              <p className="text-xs text-[var(--text-muted)]">{user.identifier} · {user.email} · {user.role}</p>
+            </div>
+            <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate(user.id)}>
+              {approve.isPending && approve.variables === user.id ? 'Approving…' : 'Approve'}
+            </Button>
+          </article>
+        ))}
+      </div>
     </div>
   );
 }

@@ -9,29 +9,29 @@ export const TeacherDashboardPage = () => {
   const t = data?.teacher;
 
   return (
-    <div className="space-y-6 relative z-10">
+    <div className="space-y-6">
       <DashboardHero
-        consoleName="03 // FACULTY CONSOLE"
         roleName="TEACHER"
         unreadNotifications={t?.unread_notifications}
+        greetingHint="Assigned courses, today’s classes, and pending reviews."
       />
       <TeacherQuickStats data={t} loading={isLoading} />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <TodayRoutine routine={[]} loading={false} />
-        <section className="hud-box corner-brackets rounded-xl p-5">
-          <h2 className="font-mono text-sm font-bold text-slate-300 mb-3">Your queues</h2>
-          <ul className="text-xs font-mono text-slate-400 space-y-2">
-            <li className="flex items-center justify-between gap-3 border-b border-slate-800/60 pb-2">
-              <span>Lab borrow requests</span>
-              <span className="font-bold text-slate-200">{t?.pending_equipment_requests ?? 0} pending</span>
+        <section className="surface p-5">
+          <h2 className="font-display text-base font-semibold text-[var(--text)]">Pending actions</h2>
+          <ul className="mt-4 space-y-2 text-sm">
+            <li className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-2">
+              <span className="text-[var(--text-muted)]">Lab borrow requests</span>
+              <span className="font-semibold text-[var(--text)]">{t?.pending_equipment_requests ?? 0} pending</span>
             </li>
-            <li className="flex items-center justify-between gap-3 border-b border-slate-800/60 pb-2">
-              <span>Room reservations</span>
-              <span className="font-bold text-slate-200">{t?.pending_room_requests ?? 0} pending</span>
+            <li className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-2">
+              <span className="text-[var(--text-muted)]">Room reservations</span>
+              <span className="font-semibold text-[var(--text)]">{t?.pending_room_requests ?? 0} pending</span>
             </li>
             <li className="flex items-center justify-between gap-3">
-              <span>Project proposals</span>
-              <span className="font-bold text-slate-200">{t?.pending_project_proposals ?? 0} pending</span>
+              <span className="text-[var(--text-muted)]">Project proposals</span>
+              <span className="font-semibold text-[var(--text)]">{t?.pending_project_proposals ?? 0} pending</span>
             </li>
           </ul>
         </section>

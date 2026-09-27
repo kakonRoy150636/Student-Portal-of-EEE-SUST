@@ -19,7 +19,7 @@ import heroMobile from '../assets/images/login-hero-768.jpg';
  *     at 32.6 dB and the legibility is handled entirely in CSS.
  */
 export const AuthLayout = () => (
-  <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-ink lg:grid lg:grid-cols-[1.08fr_1fr]">
+  <div className="min-h-screen bg-[var(--bg)] lg:grid lg:h-screen lg:grid-cols-[1.08fr_1fr] lg:overflow-hidden">
     {/* ---------- photographic panel ---------- */}
     <section className="relative hidden lg:block min-h-0" aria-hidden="true">
       <picture>
@@ -60,7 +60,7 @@ export const AuthLayout = () => (
     </section>
 
     {/* ---------- form panel ---------- */}
-    <main className="relative flex min-h-screen flex-col items-center justify-center bg-ink px-5 py-10 sm:px-8 lg:min-h-0 lg:px-12">
+    <main className="relative flex min-h-screen flex-col items-center justify-center bg-[var(--bg)] px-5 py-10 sm:px-8 lg:min-h-0 lg:px-12">
       {/* On mobile the photo becomes a short banner instead of disappearing,
           so the page still feels like the same place. */}
       <div className="relative mb-8 h-32 w-full overflow-hidden rounded-lg lg:hidden" aria-hidden="true">

@@ -1,22 +1,51 @@
 import React from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useQuery } from '@tanstack/react-query';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { PageSkeleton } from '@/components/shared/PageSkeleton';
+import { StatusBadge } from '@/components/shared/StatusBadge';
+import { DataTable } from '@/components/shared/DataTable';
+import { labApi } from '../api/labApi';
+import type { LabEquipment } from '@/types/facilities';
 
 export default function LabManagementPage() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['labs', 'equipment'],
+    queryFn: async () => (await labApi.getEquipment()).data,
+    retry: false,
+  });
+
+  const rows = (data ?? []).map((item) => ({ ...item, id: item.tag }));
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">Smart Lab Management</h1>
-      <Card>
-        <CardContent className="p-5">
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="font-bold text-sm">Rigol DS1054Z Digital Oscilloscope</p>
-              <p className="text-xs text-slate-400">Tag: SUST-EEE-EL-042 | Electronics Lab Bench 4</p>
-            </div>
-            <Badge variant="default">Operational</Badge>
-          </div>
-        </CardContent>
-      </Card>
+      <PageHeader
+        kicker="Campus"
+        title="Lab management"
+        description="Equipment inventory across department labs."
+      />
+      {isLoading && <PageSkeleton cards={0} rows={5} />}
+      {isError && (
+        <p className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]" role="alert">
+          Could not load equipment.
+        </p>
+      )}
+      {!isLoading && !isError && rows.length === 0 && (
+        <EmptyState title="No equipment listed" description="The inventory is empty, or nothing has been catalogued yet." />
+      )}
+      {!isLoading && !isError && rows.length > 0 && (
+        <DataTable<LabEquipment & { id: string }>
+          data={rows}
+          emptyMessage="No equipment listed"
+          columns={[
+            { header: 'Tag', accessorKey: 'tag' },
+            { header: 'Model', accessorKey: 'model' },
+            { header: 'Category', accessorKey: 'category' },
+            { header: 'Lab', accessorKey: 'lab' },
+            { header: 'Status', cell: (row) => <StatusBadge status={row.status} /> },
+          ]}
+        />
+      )}
     </div>
   );
 }

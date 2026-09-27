@@ -1,13 +1,34 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-export const ConfirmDialog = ({ title, message, onConfirm, onCancel }: any) => (
-  <div className="p-4 border rounded-lg bg-white dark:bg-slate-900 space-y-3">
-    <h3 className="font-bold text-sm">{title}</h3>
-    <p className="text-xs text-slate-500">{message}</p>
-    <div className="flex gap-2 justify-end">
-      <Button size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
-      <Button size="sm" variant="destructive" onClick={onConfirm}>Confirm</Button>
-    </div>
-  </div>
+export const ConfirmDialog = ({
+  title,
+  message,
+  open,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  message: string;
+  open?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) => (
+  <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>{title}</DialogTitle>
+      </DialogHeader>
+      <p className="text-sm text-[var(--text-muted)]">{message}</p>
+      <div className="mt-5 flex justify-end gap-2">
+        <Button size="sm" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="sm" variant="destructive" onClick={onConfirm}>
+          Confirm
+        </Button>
+      </div>
+    </DialogContent>
+  </Dialog>
 );

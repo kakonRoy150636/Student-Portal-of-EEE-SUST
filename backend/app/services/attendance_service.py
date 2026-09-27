@@ -9,6 +9,23 @@ from sqlalchemy import select
 
 THRESHOLD_PERCENT = 75.0
 
+
+def _is_expired(deadline: datetime) -> bool:
+    """Whether an attendance correction window has closed.
+
+    ``editable_until`` is TIMESTAMPTZ in Postgres (asyncpg returns aware
+    datetimes), but SQLite -- used by the test suite -- has no timezone-aware
+    storage and returns naive values. Comparing either against an aware
+    ``datetime.now(timezone.utc)`` raises TypeError, which would surface as a
+    500 instead of a normal "window expired" rejection, so both sides are
+    normalised to naive UTC first.
+    """
+    now = datetime.now(timezone.utc)
+    if deadline.tzinfo is None:
+        return deadline < now.replace(tzinfo=None)
+    return deadline < now
+
+
 class AttendanceService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -100,7 +117,7 @@ class AttendanceService:
         session = await self.repo.get_by_id(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found.")
-        if datetime.now(timezone.utc) > session.editable_until:
+        if _is_expired(session.editable_until):
             raise HTTPException(status_code=400, detail="Correction window has expired.")
 
         for r in records:

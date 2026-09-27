@@ -5,8 +5,6 @@ REVIEW"). These tests pin the two properties that make the new endpoint
 trustworthy: the numbers actually come from the rows that exist, and a caller
 only ever receives the section for their own role.
 """
-from datetime import date
-
 import pytest
 
 from app.models.academic import CourseEnrollment, CourseOffering
@@ -21,7 +19,7 @@ async def _offering_for(db, student: User) -> CourseOffering:
     from app.models.academic import Course, Semester
 
     semester = Semester(title=f"Sem {student.identifier}", is_active=True,
-                        start_date=date(2026, 1, 1), end_date=date(2026, 6, 30))
+                        start_date="2026-01-01", end_date="2026-06-30")
     db.add(semester)
     await db.flush()
 

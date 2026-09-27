@@ -20,20 +20,18 @@ interface StatCardProps {
   href?: string;
 }
 
-const TONE: Record<StatTone, { text: string; ring: string; dot: string }> = {
-  accent: { text: 'var(--accent-bright)', ring: 'var(--accent-edge)', dot: 'var(--accent)' },
-  warn: { text: '#FB7185', ring: 'rgba(251,113,133,0.35)', dot: '#FB7185' },
-  muted: { text: 'var(--accent-bright)', ring: 'var(--accent-edge)', dot: 'var(--accent-deep)' },
+const TONE: Record<StatTone, { text: string; bg: string }> = {
+  accent: { text: 'var(--accent-bright)', bg: 'var(--accent-soft)' },
+  warn: { text: 'var(--danger)', bg: 'var(--danger-soft)' },
+  muted: { text: 'var(--text-muted)', bg: 'var(--surface-muted)' },
 };
 
 /**
  * Dashboard tile.
  *
- * The accent comes from the active theme's CSS variables rather than a fixed
- * hex, so a tile follows Graphite/Brass/Midnight instead of staying magenta
- * while the rest of the shell recolours. The previous version also printed a
- * constant "ID:0x7B2" and an always-animating status dot on every card, which
- * implied a live feed that did not exist.
+ * Accent comes from the active theme tokens so light and dark both recolour
+ * the tile. Values stay measured: a missing number is a skeleton or empty
+ * state, never an invented figure.
  */
 export const StatCard = ({
   title,
@@ -48,42 +46,33 @@ export const StatCard = ({
   const t = TONE[tone];
   const body = (
     <>
-      <div className="flex items-center justify-between pb-3 text-[10px] font-semibold tracking-widest text-slate-500 border-b border-slate-800/80">
-        <span>{tag ?? title.toUpperCase()}</span>
-      </div>
-
-      <div className="mt-4 flex items-start justify-between gap-3">
-        <div className="space-y-1 min-w-0">
-          <p className="text-[11px] font-mono uppercase tracking-wider text-slate-400">{title}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-subtle)]">
+            {tag ?? title}
+          </p>
           {loading || value === undefined || value === null ? (
-            <div className="h-7 w-24 animate-pulse rounded bg-slate-800/80" aria-hidden="true" />
+            <div className="mt-2 h-8 w-20 animate-pulse rounded bg-[var(--surface-muted)]" aria-hidden="true" />
           ) : (
-            <p className="text-2xl font-black tracking-tight text-white font-mono tabular-nums">{value}</p>
+            <p className="mt-1 font-display text-xl font-bold tabular-nums tracking-tight text-[var(--text)]">
+              {value}
+            </p>
           )}
         </div>
         <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border"
-          style={{ borderColor: t.ring, backgroundColor: 'var(--accent-soft)', color: t.text }}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+          style={{ backgroundColor: t.bg, color: t.text }}
         >
           {icon}
         </div>
       </div>
-
-      {subtitle && (
-        <div className="mt-4 border-t border-slate-800/80 pt-3 text-xs font-mono">
-          <span className="text-slate-500 text-[11px] truncate">{subtitle}</span>
-        </div>
-      )}
+      {subtitle && <p className="mt-3 text-sm leading-5 text-[var(--text-muted)]">{subtitle}</p>}
     </>
   );
 
-  const shell = `hud-box corner-brackets relative block rounded-lg p-5 overflow-hidden transition-colors ${
-    href ? 'hover:border-[var(--accent-edge)]' : ''
-  }`;
+  const shell = `surface block p-5 ${href ? 'transition-colors hover:border-[var(--accent-edge)]' : ''}`;
 
   if (href) {
-    // Link, not <a href>: a plain anchor would throw away the SPA router
-    // state and reload the whole app.
     return (
       <Link to={href} className={shell}>
         {body}
