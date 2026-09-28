@@ -1,4 +1,4 @@
-"""Alumni Portal business logic: registration, verification queue, decisions.
+"""Alumni Portal business logic: registration, verification, and members area.
 
 Layering follows the rest of the portal: endpoints validate with Pydantic,
 delegate here, and this service talks only to repositories. Endpoint modules
@@ -31,20 +31,77 @@ decision flagged to the user, not something this layer should decide silently.
 """
 from __future__ import annotations
 
+import re
 import uuid
+from datetime import date, datetime, timezone
 
-from app.core.exceptions import NotFoundException, ResourceConflictException
-from app.models.alumni import AlumniProfile, MembershipStatus
+from sqlalchemy.exc import OperationalError, ProgrammingError
+
+from app.core.exceptions import (
+    ForbiddenException,
+    NotFoundException,
+    ResourceConflictException,
+)
+from app.models.alumni import (
+    AlumniProfile,
+    Event,
+    EventRSVP,
+    MembershipStatus,
+    MentorshipPair,
+    Scholarship,
+    ScholarshipApplication,
+)
 from app.models.user import User, UserRole
-from app.repositories.alumni_repository import AlumniRepository
+from app.repositories.alumni_repository import (
+    AlumniRepository,
+    AlumniStatsRepository,
+    EventRepository,
+    GalleryRepository,
+    MentorshipRepository,
+    NewsRepository,
+    ScholarshipRepository,
+)
 from app.repositories.user_repository import UserRepository
 from app.schemas.alumni import (
+    AlumniDashboardResponse,
+    AlumniLandingResponse,
+    AlumniLandingStats,
     AlumniProfileCreate,
     AlumniProfileResponse,
+    AlumniProfileUpdate,
     AlumniRegisterRequest,
+    AlumniUserSummary,
     AlumniVerificationDecision,
+    EventCreate,
+    EventResponse,
+    EventRsvpRequest,
+    EventRsvpResponse,
+    GalleryAlbumResponse,
+    MentorshipPairResponse,
+    MentorshipRequest,
+    MentorshipRespondRequest,
+    NewsPostResponse,
+    ScholarshipApplyRequest,
+    ScholarshipApplicationResponse,
+    ScholarshipCreate,
+    ScholarshipResponse,
+    ScholarshipReviewRequest,
 )
 from app.schemas.auth import RegisterResponse
+
+
+def _aware(value: datetime | None) -> datetime | None:
+    """Normalise naive SQLite timestamps so window comparisons do not TypeError."""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+def _slugify(title: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+    return slug or "post"
 
 
 class AlumniService:
@@ -52,8 +109,14 @@ class AlumniService:
         self.db = db
         self.repo = AlumniRepository(db)
         self.users = UserRepository(db)
+        self.events = EventRepository(db)
+        self.scholarships = ScholarshipRepository(db)
+        self.mentorship = MentorshipRepository(db)
+        self.news = NewsRepository(db)
+        self.gallery = GalleryRepository(db)
+        self.stats = AlumniStatsRepository(db)
 
-    async def register(self, dto: AlumniRegisterRequest) -> "RegisterResponse":
+    async def register(self, dto: AlumniRegisterRequest) -> RegisterResponse:
         """Create a fresh alumni account plus its pending verification claim.
 
         Deliberately refuses to attach an alumni profile to an *existing*
@@ -135,13 +198,24 @@ class AlumniService:
         await self.db.refresh(profile)
         return AlumniProfileResponse.model_validate(profile)
 
-    async def get_my_profile(self, user: User) -> "AlumniProfileResponse | None":
+    async def get_my_profile(self, user: User) -> AlumniProfileResponse | None:
         profile = await self.repo.get_profile_by_user_id(user.id)
         if not profile:
             return None
         return AlumniProfileResponse.model_validate(profile)
 
-    async def list_pending_verifications(self) -> list["AlumniProfileResponse"]:
+    async def update_my_profile(self, user: User, dto: AlumniProfileUpdate) -> AlumniProfileResponse:
+        profile = await self.repo.get_profile_by_user_id(user.id)
+        if not profile:
+            raise NotFoundException("Alumni profile not found.")
+        data = dto.model_dump(exclude_unset=True)
+        for key, value in data.items():
+            setattr(profile, key, value)
+        await self.db.commit()
+        await self.db.refresh(profile)
+        return AlumniProfileResponse.model_validate(profile)
+
+    async def list_pending_verifications(self) -> list[AlumniProfileResponse]:
         """Queue for the admin verification view.
 
         Filters on ``membership_status='pending'`` (not ``is_active``): an
@@ -196,3 +270,250 @@ class AlumniService:
                 "This claim has already been decided."
             )
         return profile
+
+    async def landing(self) -> AlumniLandingResponse:
+        """Public landing payload: only published / visible content."""
+        counts = await self.stats.landing_counts()
+        news = await self.news.list_posts(published_only=True, limit=4)
+        events = await self.events.list_events(published_only=True, upcoming_only=False)
+        scholarships = await self.scholarships.list_scholarships(published_only=True, open_only=True)
+        gallery = await self.gallery.list_albums(published_only=True)
+        event_payloads = [await self._event_response(item) for item in events[:4]]
+        return AlumniLandingResponse(
+            stats=AlumniLandingStats(**counts),
+            news=[NewsPostResponse.model_validate(item) for item in news],
+            events=event_payloads,
+            gallery=[GalleryAlbumResponse.model_validate(item) for item in gallery[:6]],
+            scholarships=[ScholarshipResponse.model_validate(item) for item in scholarships[:4]],
+        )
+
+    async def dashboard(self, user: User) -> AlumniDashboardResponse:
+        profile = await self.repo.get_profile_by_user_id(user.id)
+        rsvps = await self.events.list_user_rsvps(user.id)
+        applications = await self.scholarships.list_user_applications(user.id)
+        pairs = await self.mentorship.list_for_user(user.id)
+        return AlumniDashboardResponse(
+            profile=AlumniProfileResponse.model_validate(profile) if profile else None,
+            events=[await self._rsvp_response(item) for item in rsvps],
+            applications=[ScholarshipApplicationResponse.model_validate(item) for item in applications],
+            mentorship=[MentorshipPairResponse.model_validate(item) for item in pairs],
+            pending_verification=bool(profile and profile.membership_status == MembershipStatus.PENDING.value),
+        )
+
+    async def search_directory(
+        self,
+        q: str | None = None,
+        batch_year: int | None = None,
+        industry: str | None = None,
+        limit: int = 50,
+    ) -> list[AlumniProfileResponse]:
+        kwargs = {
+            "q": q,
+            "batch_year": batch_year,
+            "industry": industry,
+            "visible_only": True,
+            "membership_status": MembershipStatus.ACTIVE.value,
+            "limit": min(limit, 100),
+        }
+        try:
+            rows = await self.repo.search_directory(**kwargs)
+        except (ProgrammingError, OperationalError):
+            await self.db.rollback()
+            rows = await self.repo.search_directory_fallback(**kwargs)
+        return [AlumniProfileResponse.model_validate(row) for row in rows]
+
+    async def get_directory_profile(self, profile_id: uuid.UUID) -> AlumniProfileResponse:
+        profile = await self.repo.get_profile(profile_id)
+        if (
+            not profile
+            or not profile.is_visible
+            or profile.membership_status != MembershipStatus.ACTIVE.value
+        ):
+            raise NotFoundException("Alumni profile not found.")
+        return AlumniProfileResponse.model_validate(profile)
+
+    async def list_events(self, user: User | None = None) -> list[EventResponse]:
+        published_only = not (user and user.role == UserRole.SUPER_ADMIN)
+        rows = await self.events.list_events(published_only=published_only)
+        return [await self._event_response(row) for row in rows]
+
+    async def get_event(self, event_id: uuid.UUID, user: User | None = None) -> EventResponse:
+        event = await self.events.get_event(event_id)
+        if not event:
+            raise NotFoundException("Event not found.")
+        if not event.is_published and not (user and user.role == UserRole.SUPER_ADMIN):
+            raise NotFoundException("Event not found.")
+        return await self._event_response(event)
+
+    async def create_event(self, admin: User, dto: EventCreate) -> EventResponse:
+        event = Event(created_by=admin.id, **dto.model_dump())
+        await self.events.create(event)
+        await self.db.commit()
+        await self.db.refresh(event)
+        return await self._event_response(event)
+
+    async def rsvp_event(self, user: User, event_id: uuid.UUID, dto: EventRsvpRequest) -> EventRsvpResponse:
+        event = await self.events.get_event(event_id)
+        if not event or not event.is_published:
+            raise NotFoundException("Event not found.")
+        if event.members_only and user.role != UserRole.ALUMNI:
+            raise ForbiddenException("This event is limited to verified alumni.")
+
+        existing = await self.events.get_rsvp(event_id, user.id)
+        if existing:
+            existing.rsvp_status = dto.rsvp_status
+            existing.note = dto.note
+            if dto.rsvp_status != "attending":
+                existing.slot_range = None
+            elif event.capacity is not None and existing.slot_range is None:
+                await self._assign_seat(event)
+            await self.db.commit()
+            await self.db.refresh(existing)
+            return await self._rsvp_response(existing)
+
+        if dto.rsvp_status == "attending" and event.capacity is not None:
+            await self._assign_seat(event)
+
+        rsvp = EventRSVP(
+            event_id=event.id,
+            user_id=user.id,
+            rsvp_status=dto.rsvp_status,
+            note=dto.note,
+        )
+        self.db.add(rsvp)
+        await self.db.commit()
+        await self.db.refresh(rsvp)
+        return await self._rsvp_response(rsvp)
+
+    async def _assign_seat(self, event: Event) -> None:
+        attending = await self.events.attending_count(event.id)
+        if event.capacity is not None and attending >= event.capacity:
+            raise ResourceConflictException("This event is at capacity.")
+        # SQLite has no INT4RANGE; leave slot_range null and rely on the
+        # count check above. Postgres can still apply the GiST exclusion.
+        return None
+
+    async def list_scholarships(self, user: User | None = None) -> list[ScholarshipResponse]:
+        published_only = not (user and user.role == UserRole.SUPER_ADMIN)
+        rows = await self.scholarships.list_scholarships(published_only=published_only)
+        return [ScholarshipResponse.model_validate(row) for row in rows]
+
+    async def create_scholarship(self, admin: User, dto: ScholarshipCreate) -> ScholarshipResponse:
+        item = Scholarship(created_by=admin.id, **dto.model_dump())
+        await self.scholarships.create(item)
+        await self.db.commit()
+        await self.db.refresh(item)
+        return ScholarshipResponse.model_validate(item)
+
+    async def apply_scholarship(
+        self, user: User, scholarship_id: uuid.UUID, dto: ScholarshipApplyRequest
+    ) -> ScholarshipApplicationResponse:
+        scholarship = await self.scholarships.get_by_id(scholarship_id)
+        if not scholarship or not scholarship.is_published:
+            raise NotFoundException("Scholarship not found.")
+        if scholarship.deadline < date.today():
+            raise ResourceConflictException("The application deadline has passed.")
+        existing = await self.scholarships.get_application(scholarship_id, user.id)
+        if existing:
+            raise ResourceConflictException("You have already applied for this scholarship.")
+        application = ScholarshipApplication(
+            scholarship_id=scholarship.id,
+            applicant_id=user.id,
+            motivation=dto.motivation,
+            document_key=dto.document_key,
+            document_name=dto.document_name,
+            status="submitted",
+        )
+        self.db.add(application)
+        await self.db.commit()
+        await self.db.refresh(application)
+        return ScholarshipApplicationResponse.model_validate(application)
+
+    async def review_application(
+        self, admin: User, application_id: uuid.UUID, dto: ScholarshipReviewRequest
+    ) -> ScholarshipApplicationResponse:
+        application = await self.scholarships.get_application_by_id(application_id)
+        if not application:
+            raise NotFoundException("Application not found.")
+        application.status = dto.status
+        application.reviewed_by = admin.id
+        application.reviewed_at = datetime.now(timezone.utc)
+        await self.db.commit()
+        await self.db.refresh(application)
+        return ScholarshipApplicationResponse.model_validate(application)
+
+    async def list_mentors(self, user: User) -> list[AlumniProfileResponse]:
+        rows = await self.mentorship.list_open_mentors(user.id)
+        return [AlumniProfileResponse.model_validate(row) for row in rows]
+
+    async def request_mentorship(self, user: User, dto: MentorshipRequest) -> MentorshipPairResponse:
+        if dto.mentor_id == user.id:
+            raise ResourceConflictException("You cannot mentor yourself.")
+        mentor = await self.users.get_by_id(dto.mentor_id)
+        if not mentor or mentor.role != UserRole.ALUMNI:
+            raise NotFoundException("Mentor not found.")
+        mentor_profile = await self.repo.get_profile_by_user_id(mentor.id)
+        if (
+            not mentor_profile
+            or mentor_profile.membership_status != MembershipStatus.ACTIVE.value
+            or not mentor_profile.is_visible
+        ):
+            raise NotFoundException("Mentor not found.")
+        existing = await self.mentorship.get_pair(mentor.id, user.id)
+        if existing:
+            raise ResourceConflictException("A mentorship request already exists.")
+        pair = MentorshipPair(
+            mentor_id=mentor.id,
+            mentee_id=user.id,
+            requested_by=user.id,
+            mentee_note=dto.mentee_note,
+            status="requested",
+        )
+        await self.mentorship.create(pair)
+        await self.db.commit()
+        await self.db.refresh(pair)
+        return MentorshipPairResponse.model_validate(pair)
+
+    async def respond_mentorship(
+        self, user: User, pair_id: uuid.UUID, accept: bool, dto: MentorshipRespondRequest | None = None
+    ) -> MentorshipPairResponse:
+        pair = await self.mentorship.get_by_id(pair_id)
+        if not pair:
+            raise NotFoundException("Mentorship request not found.")
+        if pair.mentor_id != user.id:
+            raise ForbiddenException("Only the requested mentor can respond.")
+        if pair.status != "requested":
+            raise ResourceConflictException("This mentorship request has already been decided.")
+        pair.status = "active" if accept else "declined"
+        pair.mentor_note = dto.mentor_note if dto else None
+        if accept:
+            pair.started_at = datetime.now(timezone.utc)
+        await self.db.commit()
+        await self.db.refresh(pair)
+        return MentorshipPairResponse.model_validate(pair)
+
+    async def list_news(self) -> list[NewsPostResponse]:
+        rows = await self.news.list_posts(published_only=True, limit=20)
+        return [NewsPostResponse.model_validate(row) for row in rows]
+
+    async def get_news(self, slug: str) -> NewsPostResponse:
+        post = await self.news.get_by_slug(slug)
+        if not post or not post.is_published:
+            raise NotFoundException("News post not found.")
+        return NewsPostResponse.model_validate(post)
+
+    async def list_gallery(self) -> list[GalleryAlbumResponse]:
+        rows = await self.gallery.list_albums(published_only=True)
+        return [GalleryAlbumResponse.model_validate(row) for row in rows]
+
+    async def _event_response(self, event: Event) -> EventResponse:
+        attending = await self.events.attending_count(event.id)
+        payload = EventResponse.model_validate(event)
+        payload.attending_count = attending
+        return payload
+
+    async def _rsvp_response(self, rsvp: EventRSVP) -> EventRsvpResponse:
+        payload = EventRsvpResponse.model_validate(rsvp)
+        if rsvp.event is not None:
+            payload.event = await self._event_response(rsvp.event)
+        return payload

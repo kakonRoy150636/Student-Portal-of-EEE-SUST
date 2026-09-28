@@ -50,7 +50,8 @@ export const NAV_SECTIONS: NavSection[] = [
     group: 'Career',
     items: [
       { name: 'Career Portal', path: '/career', icon: Briefcase, hint: 'Openings and internships', roles: [UserRole.STUDENT, UserRole.CR] },
-      { name: 'Alumni Directory', path: '/dashboard', icon: GraduationCap, hint: 'Alumni membership', roles: [UserRole.ALUMNI] },
+      { name: 'Alumni Directory', path: '/alumni/directory', icon: GraduationCap, hint: 'Verified alumni', roles: [UserRole.ALUMNI, UserRole.SUPER_ADMIN] },
+      { name: 'Alumni Events', path: '/alumni/events', icon: Calendar, hint: 'Reunions and webinars', roles: [UserRole.ALUMNI, UserRole.SUPER_ADMIN] },
     ],
   },
   {

@@ -1,30 +1,46 @@
-"""Alumni Portal endpoints: registration, verification queue, admin decisions.
+"""Alumni Portal endpoints: public landing plus authenticated members' area.
 
 Endpoints stay thin -- validate with Pydantic, delegate to AlumniService,
 return a response model. No ORM access and no business rules here.
 """
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import RequireRole, get_current_user
 from app.core.database import get_db
 from app.models.user import User, UserRole
 from app.schemas.alumni import (
+    AlumniDashboardResponse,
+    AlumniLandingResponse,
     AlumniProfileCreate,
     AlumniProfileResponse,
+    AlumniProfileUpdate,
     AlumniRegisterRequest,
     AlumniVerificationDecision,
+    EventCreate,
+    EventResponse,
+    EventRsvpRequest,
+    EventRsvpResponse,
+    GalleryAlbumResponse,
+    MentorshipPairResponse,
+    MentorshipRequest,
+    MentorshipRespondRequest,
+    NewsPostResponse,
+    ScholarshipApplyRequest,
+    ScholarshipApplicationResponse,
+    ScholarshipCreate,
+    ScholarshipResponse,
+    ScholarshipReviewRequest,
 )
 from app.schemas.auth import RegisterResponse
 from app.services.alumni_service import AlumniService
 
 router = APIRouter(prefix="/alumni", tags=["Alumni"])
 
-# Verification is an admin-only capability, mirroring the existing
-# /auth/admin/pending-approvals and /auth/admin/approve/{user_id} pair.
 admin_only = RequireRole([UserRole.SUPER_ADMIN])
+alumni_or_admin = RequireRole([UserRole.ALUMNI, UserRole.SUPER_ADMIN])
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
@@ -36,9 +52,50 @@ async def register_alumni(
     return await AlumniService(db).register(payload)
 
 
+@router.get("/landing", response_model=AlumniLandingResponse)
+async def alumni_landing(db: AsyncSession = Depends(get_db)):
+    """Public landing page: live stats plus published news, events, gallery."""
+    return await AlumniService(db).landing()
+
+
+@router.get("/directory", response_model=list[AlumniProfileResponse])
+async def search_directory(
+    q: str | None = Query(default=None, min_length=1, max_length=120),
+    batch_year: int | None = Query(default=None, ge=1960, le=2100),
+    industry: str | None = Query(default=None, max_length=100),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Visible, verified alumni only. Hidden or pending claims never leak."""
+    return await AlumniService(db).search_directory(q=q, batch_year=batch_year, industry=industry)
+
+
+@router.get("/directory/{profile_id}", response_model=AlumniProfileResponse)
+async def get_directory_profile(
+    profile_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return await AlumniService(db).get_directory_profile(profile_id)
+
+
 @router.get("/me", response_model=AlumniProfileResponse | None)
 async def my_profile(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     return await AlumniService(db).get_my_profile(user)
+
+
+@router.patch("/me", response_model=AlumniProfileResponse)
+async def update_my_profile(
+    payload: AlumniProfileUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).update_my_profile(user, payload)
+
+
+@router.get("/dashboard", response_model=AlumniDashboardResponse)
+async def my_dashboard(user: User = Depends(alumni_or_admin), db: AsyncSession = Depends(get_db)):
+    return await AlumniService(db).dashboard(user)
 
 
 @router.post("/claim", response_model=AlumniProfileResponse, status_code=201)
@@ -52,6 +109,138 @@ async def submit_claim(
     The claim is always created ``pending``; only an admin can activate it.
     """
     return await AlumniService(db).submit_claim(user, payload)
+
+
+@router.get("/events", response_model=list[EventResponse])
+async def list_events(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return await AlumniService(db).list_events(user)
+
+
+@router.get("/events/{event_id}", response_model=EventResponse)
+async def get_event(
+    event_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return await AlumniService(db).get_event(event_id, user)
+
+
+@router.post("/events", response_model=EventResponse, status_code=201)
+async def create_event(
+    payload: EventCreate,
+    user: User = Depends(admin_only),
+    db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).create_event(user, payload)
+
+
+@router.post("/events/{event_id}/rsvp", response_model=EventRsvpResponse)
+async def rsvp_event(
+    event_id: uuid.UUID,
+    payload: EventRsvpRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).rsvp_event(user, event_id, payload)
+
+
+@router.get("/scholarships", response_model=list[ScholarshipResponse])
+async def list_scholarships(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return await AlumniService(db).list_scholarships(user)
+
+
+@router.post("/scholarships", response_model=ScholarshipResponse, status_code=201)
+async def create_scholarship(
+    payload: ScholarshipCreate,
+    user: User = Depends(admin_only),
+    db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).create_scholarship(user, payload)
+
+
+@router.post(
+    "/scholarships/{scholarship_id}/apply",
+    response_model=ScholarshipApplicationResponse,
+    status_code=201,
+)
+async def apply_scholarship(
+    scholarship_id: uuid.UUID,
+    payload: ScholarshipApplyRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).apply_scholarship(user, scholarship_id, payload)
+
+
+@router.patch(
+    "/scholarships/applications/{application_id}",
+    response_model=ScholarshipApplicationResponse,
+)
+async def review_application(
+    application_id: uuid.UUID,
+    payload: ScholarshipReviewRequest,
+    user: User = Depends(admin_only),
+    db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).review_application(user, application_id, payload)
+
+
+@router.get("/mentors", response_model=list[AlumniProfileResponse])
+async def list_mentors(
+    user: User = Depends(alumni_or_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).list_mentors(user)
+
+
+@router.post("/mentorship", response_model=MentorshipPairResponse, status_code=201)
+async def request_mentorship(
+    payload: MentorshipRequest,
+    user: User = Depends(alumni_or_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).request_mentorship(user, payload)
+
+
+@router.patch("/mentorship/{pair_id}/accept", response_model=MentorshipPairResponse)
+async def accept_mentorship(
+    pair_id: uuid.UUID,
+    payload: MentorshipRespondRequest | None = None,
+    user: User = Depends(alumni_or_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).respond_mentorship(user, pair_id, True, payload)
+
+
+@router.patch("/mentorship/{pair_id}/decline", response_model=MentorshipPairResponse)
+async def decline_mentorship(
+    pair_id: uuid.UUID,
+    payload: MentorshipRespondRequest | None = None,
+    user: User = Depends(alumni_or_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).respond_mentorship(user, pair_id, False, payload)
+
+
+@router.get("/news", response_model=list[NewsPostResponse])
+async def list_news(db: AsyncSession = Depends(get_db)):
+    return await AlumniService(db).list_news()
+
+
+@router.get("/news/{slug}", response_model=NewsPostResponse)
+async def get_news(slug: str, db: AsyncSession = Depends(get_db)):
+    return await AlumniService(db).get_news(slug)
+
+
+@router.get("/gallery", response_model=list[GalleryAlbumResponse])
+async def list_gallery(db: AsyncSession = Depends(get_db)):
+    return await AlumniService(db).list_gallery()
 
 
 @router.get(
