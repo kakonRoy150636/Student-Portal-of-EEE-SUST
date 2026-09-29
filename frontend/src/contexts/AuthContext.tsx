@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import type { AxiosError } from 'axios';
 import { User, UserRole, LoginCredentials } from '@/types/auth';
 import { api, setAccessToken } from '@/lib/axios';
 
@@ -21,18 +22,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY);
-    if (token) {
-      setAccessToken(token);
-      // A stale access token is normal here: the axios interceptor silently
-      // calls /auth/refresh and replays this request, so a failure only means
-      // the session is genuinely gone.
-      api.get('/auth/me').then(({ data }) => setUser(data)).catch(() => {
-        localStorage.removeItem(TOKEN_KEY);
-        setAccessToken(null);
-      }).finally(() => setLoading(false));
-    } else {
+    if (!token) {
       setLoading(false);
+      return;
     }
+    setAccessToken(token);
+
+    let cancelled = false;
+    // A stale access token is normal here: the axios interceptor silently calls
+    // /auth/refresh and replays this request. So a rejection means either that
+    // refresh failed too (an authoritative 401 -- the session really is over)
+    // or that the API could not be reached at all. The second case is what a
+    // cold start or a restart looks like from the browser, and deleting the
+    // token there would sign people out for no reason -- so retry a few times
+    // and only clear the session on a real 401.
+    const BOOTSTRAP_ATTEMPTS = 3;
+    const bootstrap = async () => {
+      for (let attempt = 0; attempt < BOOTSTRAP_ATTEMPTS; attempt += 1) {
+        try {
+          const { data } = await api.get('/auth/me');
+          if (!cancelled) setUser(data);
+          return;
+        } catch (error) {
+          const status = (error as AxiosError).response?.status;
+          if (status === 401 || status === 403) {
+            localStorage.removeItem(TOKEN_KEY);
+            setAccessToken(null);
+            return;
+          }
+          if (attempt < BOOTSTRAP_ATTEMPTS - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+          }
+        }
+      }
+    };
+    void bootstrap().finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Fired by the axios interceptor when refreshing fails, so a dead session

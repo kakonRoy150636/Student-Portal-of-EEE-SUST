@@ -73,8 +73,13 @@ api.interceptors.response.use(
         config.headers = config.headers ?? {};
         config.headers.Authorization = `Bearer ${newToken}`;
         return api.request(config);
-      } catch {
-        clearSession();
+      } catch (refreshError) {
+        // Only drop the session when the server actually rejected the refresh
+        // cookie. When the call never got an answer -- the API is restarting, a
+        // proxy answered 502, the laptop just woke up -- the cookie is still
+        // valid, and clearing it would log the user out over a network blip.
+        const status = (refreshError as AxiosError).response?.status;
+        if (status === 401 || status === 403) clearSession();
       }
     }
 
