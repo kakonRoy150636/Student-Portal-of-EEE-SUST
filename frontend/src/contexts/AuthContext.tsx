@@ -14,39 +14,26 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const TOKEN_KEY = 'access_token';
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-    setAccessToken(token);
-
     let cancelled = false;
-    // A stale access token is normal here: the axios interceptor silently calls
-    // /auth/refresh and replays this request. So a rejection means either that
-    // refresh failed too (an authoritative 401 -- the session really is over)
-    // or that the API could not be reached at all. The second case is what a
-    // cold start or a restart looks like from the browser, and deleting the
-    // token there would sign people out for no reason -- so retry a few times
-    // and only clear the session on a real 401.
+    // Access tokens stay in memory only. On a reload, the HttpOnly refresh
+    // cookie silently restores the session without exposing a bearer token to
+    // localStorage/XSS-capable scripts.
     const BOOTSTRAP_ATTEMPTS = 3;
     const bootstrap = async () => {
       for (let attempt = 0; attempt < BOOTSTRAP_ATTEMPTS; attempt += 1) {
         try {
-          const { data } = await api.get('/auth/me');
-          if (!cancelled) setUser(data);
+          const { data } = await api.post('/auth/refresh');
+          setAccessToken(data.tokens.access_token);
+          if (!cancelled) setUser(data.user);
           return;
         } catch (error) {
           const status = (error as AxiosError).response?.status;
           if (status === 401 || status === 403) {
-            localStorage.removeItem(TOKEN_KEY);
             setAccessToken(null);
             return;
           }
@@ -76,14 +63,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (creds: LoginCredentials) => {
     const { data } = await api.post('/auth/login', creds);
     const token = data.tokens.access_token;
-    localStorage.setItem(TOKEN_KEY, token);
     setAccessToken(token);
     setUser(data.user);
   };
 
   const logout = async () => {
     try { await api.post('/auth/logout'); } finally {
-      localStorage.removeItem(TOKEN_KEY);
       setAccessToken(null);
       setUser(null);
     }

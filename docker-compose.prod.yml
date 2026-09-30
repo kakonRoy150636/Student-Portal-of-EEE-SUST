@@ -14,6 +14,23 @@ services:
           cpus: '2'
           memory: 4G
 
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata_prod:/data
+
+  minio:
+    image: minio/minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - miniodata_prod:/data
+
   backend:
     build:
       context: ./backend
@@ -21,8 +38,38 @@ services:
     restart: always
     environment:
       ENVIRONMENT: production
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - minio
     deploy:
       replicas: 2
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      - .env
+    command: celery -A app.core.celery_app.celery_app worker --loglevel=warning
+    depends_on:
+      - backend
+      - redis
+
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      - .env
+    command: celery -A app.core.celery_app.celery_app beat --loglevel=warning
+    depends_on:
+      - backend
+      - redis
 
   frontend:
     build:
@@ -35,3 +82,5 @@ services:
 
 volumes:
   pgdata_prod:
+  redisdata_prod:
+  miniodata_prod:

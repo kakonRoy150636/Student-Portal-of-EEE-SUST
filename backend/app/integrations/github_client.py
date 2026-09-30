@@ -2,8 +2,14 @@ import hmac
 import hashlib
 
 def verify_github_signature(payload_body: bytes, secret: str, signature_header: str) -> bool:
-    if not signature_header:
+    """Validate GitHub's HMAC signature without allowing malformed input to 500."""
+    if not secret or not signature_header:
         return False
-    hash_type, signature = signature_header.split('=')
+    try:
+        hash_type, signature = signature_header.split('=', 1)
+    except ValueError:
+        return False
+    if hash_type.lower() != "sha256" or not signature:
+        return False
     mac = hmac.new(secret.encode('utf-8'), msg=payload_body, digestmod=hashlib.sha256)
-    return hmac.compare_digest(mac.hexdigest(), signature)
+    return hmac.compare_digest(mac.hexdigest(), signature.lower())

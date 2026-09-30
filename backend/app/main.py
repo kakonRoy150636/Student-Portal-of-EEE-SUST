@@ -7,6 +7,7 @@ from app.middlewares.correlation_id import CorrelationIdMiddleware
 from app.middlewares.error_handler import register_exception_handlers
 from app.api.v1.router import api_router
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
@@ -18,6 +19,18 @@ app = FastAPI(
     docs_url="/api/docs" if settings.ENVIRONMENT != "production" else None,
     lifespan=lifespan
 )
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if settings.ENVIRONMENT == "production":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
 
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(

@@ -37,7 +37,6 @@ const requestNewAccessToken = (): Promise<string> => {
         const newToken = data?.tokens?.access_token as string | undefined;
         if (!newToken) throw new Error('Refresh response contained no access token');
         token = newToken;
-        localStorage.setItem('access_token', newToken);
         return newToken;
       })
       .finally(() => {
@@ -49,7 +48,6 @@ const requestNewAccessToken = (): Promise<string> => {
 
 const clearSession = () => {
   token = null;
-  localStorage.removeItem('access_token');
   if (typeof window !== 'undefined') {
     // Bump a value AuthContext watches so it can clear the cached user too.
     window.dispatchEvent(new Event('auth:session-expired'));
