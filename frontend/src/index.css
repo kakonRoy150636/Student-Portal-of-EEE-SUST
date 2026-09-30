@@ -143,6 +143,30 @@
     border: 1px solid var(--border);
     border-radius: 0.875rem;
     box-shadow: var(--shadow);
+    transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  }
+
+  .surface:hover {
+    border-color: var(--accent-edge);
+  }
+
+  .skip-link {
+    position: fixed;
+    left: 1rem;
+    top: 1rem;
+    z-index: 100;
+    transform: translateY(-160%);
+    border-radius: 0.5rem;
+    background: var(--primary);
+    color: var(--primary-fg);
+    padding: 0.65rem 0.9rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: transform 160ms ease;
+  }
+
+  .skip-link:focus {
+    transform: translateY(0);
   }
 
   .surface-muted {
