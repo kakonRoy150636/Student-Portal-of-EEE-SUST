@@ -5,6 +5,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from app.models.base import Base
+import app.models  # noqa: F401 -- register all models for autogenerate
 from app.core.config import settings
 
 config = context.config
@@ -25,6 +26,9 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 def do_run_migrations(connection: Connection) -> None:
+    # Serialize concurrent deploys before Alembic reads its version table.
+    # The transaction-scoped lock is released on success or rollback.
+    connection.exec_driver_sql("SELECT pg_advisory_xact_lock(736887201)")
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
         context.run_migrations()
@@ -37,7 +41,7 @@ async def run_async_migrations() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
-    async with connectable.connect() as connection:
+    async with connectable.begin() as connection:
         await connection.run_sync(do_run_migrations)
     await connectable.dispose()
 

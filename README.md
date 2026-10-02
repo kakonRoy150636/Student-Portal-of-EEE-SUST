@@ -14,7 +14,7 @@ It brings course planning, attendance, room and lab booking, resources, projects
 
 ![SUST EEE student dashboard preview](frontend/src/assets/images/login-hero.jpg)
 
-**Try it locally:** `docker compose up --build -d postgres redis minio backend celery_worker celery_beat frontend`
+**Try it locally:** `docker compose up --build -d`
 **Open the app:** [localhost:5173](http://localhost:5173)
 
 ## Product Preview
@@ -112,7 +112,7 @@ FastAPI + SQLAlchemy async + JWT/RBAC
                               +--> Google Gemini API
 ```
 
-The backend is organised by domain across API endpoints, schemas, services, repositories, models, and tasks. Database changes are mirrored in `database/schema.sql`, numbered SQL migrations, and Alembic revisions.
+The backend is organised by domain across API endpoints, schemas, services, repositories, models, and tasks. Alembic owns database upgrades; `database/schema.sql` is a reference snapshot, not a container init script. The older numbered SQL migrations remain as historical references.
 
 ## Tech Stack
 
@@ -144,7 +144,7 @@ Update `.env` before using external services. At minimum, change `SECRET_KEY` fo
 The core application services are:
 
 ```bash
-docker compose up --build -d postgres redis minio backend celery_worker celery_beat frontend
+docker compose up --build -d
 ```
 
 Open:
@@ -158,7 +158,127 @@ Open:
 - PostgreSQL: `localhost:5433`
 - Redis: `localhost:6380`
 
-The compose file also contains a `minio-init` bucket initializer. If the `minio/mc` image is unavailable in your registry, start the core services with the command above and create the `sust-eee-resources` bucket from the MinIO console before testing uploads.
+The `migrate` service runs `alembic upgrade head` after PostgreSQL is healthy.
+Backend and Celery services start only after it exits successfully. `minio-init`
+creates the private bucket using the `mc` binary included in the MinIO image.
+
+### Database migrations
+
+Alembic uses the async SQLAlchemy/asyncpg `DATABASE_URL` from `.env`. The
+PostgreSQL image includes pgvector; the migration user needs permission to
+create the `vector`, `btree_gist` and `uuid-ossp` extensions.
+
+`20260911_0001` now contains a complete, frozen baseline of the schema at
+2026-10-02, including enums, generated tsvectors, the GIN index, sequences,
+foreign keys and both GiST exclusion constraints. Its SQL is packaged in
+`backend/alembic/sql/20260911_0001_baseline.sql`; it does not depend on a host
+mount. Existing revision IDs are retained. Later historical revisions still
+run, including the notification recipient/read index added after the baseline.
+Future schema changes belong in **new revisions**, not edits to this snapshot.
+
+```bash
+# Start PostgreSQL, then apply all pending migrations (also automatic on up).
+docker compose up -d postgres
+docker compose run --rm migrate
+
+# Show applied revision and available history.
+docker compose run --rm migrate alembic current
+docker compose run --rm migrate alembic history
+
+# Create a new revision; the dev mount writes it into backend/alembic/versions/.
+docker compose run --rm migrate alembic revision -m "describe schema change"
+# Optional starting point from ORM metadata (review generated SQL carefully):
+docker compose run --rm migrate alembic revision --autogenerate -m "describe schema change"
+
+# Upgrade / roll back one revision. Stop API/workers before rolling back.
+docker compose run --rm migrate alembic upgrade head
+docker compose stop backend celery_worker celery_beat
+docker compose run --rm migrate alembic downgrade -1
+```
+
+Autogenerate is a draft: the ORM does not represent every SQL-only object.
+Review generated drops/type changes and hand-write `op.execute` for extensions,
+generated columns, specialized indexes and exclusion constraints. Keep the
+reference schema aligned when adding a new revision. Rebuild/redeploy to ship
+new revisions to production; plain `docker compose restart` does not rerun a
+completed one-shot migration service. Explicitly run `migrate` for each release.
+
+Downgrades can remove data. Some historical revisions are intentionally
+additive/partially reversible; inspect their `downgrade()` before using them.
+`alembic downgrade base` removes portal tables and enums and is for disposable
+databases only. Shared extensions are retained. Migration commands use a
+PostgreSQL advisory lock so concurrent deployments cannot race the version table.
+
+#### Existing databases created by schema.sql
+
+Back up the database first. If `alembic current` already reports a revision,
+use `upgrade head` without stamping. For an **unversioned database matching the
+current schema.sql**, adopt it once, then apply incremental revisions:
+
+```bash
+docker compose up -d postgres
+docker compose run --rm migrate alembic stamp 20260911_0001
+docker compose run --rm migrate alembic upgrade head
+docker compose up --build -d
+```
+
+`stamp` records a version; it does not create or validate objects. Compare a
+schema-only dump against `database/schema.sql` before using it. Older/partial
+schemas need reconciliation against their original schema and the historical
+revisions first; do not blindly stamp them or stamp `head` to hide missing
+objects. The baseline refuses an unversioned non-empty database rather than
+silently skipping or overwriting its tables.
+
+#### Development-only seed
+
+Reference/demo rows moved to `database/dev/seed.sql`. Seeding is optional,
+transactional and repeatable; it creates no user accounts.
+
+```bash
+docker compose --profile dev-seed run --rm seed-dev
+```
+
+The wrapper refuses any environment other than `development`. Neither schema
+nor seed is mounted into `docker-entrypoint-initdb.d`. The production Compose
+file has **no seed service or seed mount**, and the backend image does not
+contain the dev seed. Use the production file on its own:
+
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
+# Explicit migration command for an existing production deployment:
+docker compose -f docker-compose.prod.yml run --rm migrate
+```
+
+#### Reproduce the fresh-volume migration check
+
+Requires Docker Compose 2.24.4+ (`docker compose`, the modern equivalent of
+`docker-compose`). The overlay uses test-only credentials, no published ports,
+and project-scoped containers/volumes. Run from the repository root:
+
+```bash
+docker compose -p sust-eee-migration-check -f docker-compose.yml -f docker-compose.migration-test.yml up --build -d --wait
+docker compose -p sust-eee-migration-check -f docker-compose.yml -f docker-compose.migration-test.yml logs migrate
+docker compose -p sust-eee-migration-check -f docker-compose.yml -f docker-compose.migration-test.yml exec -T backend \
+  env MIGRATION_TEST_DATABASE_URL=postgresql://migration_test:migration_test@postgres:5432/migration_test \
+  python -m pytest -q tests/test_migrations_postgres.py
+# Remove only this disposable verification project's volumes when finished.
+docker compose -p sust-eee-migration-check -f docker-compose.yml -f docker-compose.migration-test.yml down -v
+```
+
+Use a new project name for a fresh volume if that test project already exists.
+The PostgreSQL test compares the baseline's actual catalogs against a separate
+database created from schema.sql, exercises GiST/full-text behavior, upgrades
+to head, checks repeated/concurrent upgrades, adopts an existing populated
+database, and tests downgrade/re-upgrade. It creates and removes its own random
+databases; it does not alter the database named in the test URL.
+
+Verification result (2026-10-03): isolated fresh-volume `docker compose up -d
+--wait` exited successfully; migration reached `20260918_0006`, then the API
+and frontend became healthy. Users, courses and rooms were all empty before
+opt-in seeding. The backend suite, with the PostgreSQL migration lifecycle test
+enabled, reported **98 passed, 7 skipped** (the separate legacy PostgreSQL
+fixtures were not configured). The development seed inserted 1 semester,
+3 courses and 4 rooms; its production environment guard rejected execution.
 
 ### Frontend-only development
 
@@ -207,8 +327,9 @@ backend/
       app/tasks/               Celery tasks
       tests/                   Pytest suite
 database/
-      schema.sql               Fresh-install bootstrap schema
-      migrations/              Numbered idempotent SQL migrations
+      schema.sql               Reference schema (not executed at startup)
+      dev/                     Opt-in development seed and environment guard
+      migrations/              Historical SQL migrations
 frontend/src/
       features/                Domain pages and API clients
       components/              Shared UI and layout components
@@ -231,7 +352,7 @@ Use this short path when presenting the project:
 
 - Domain-oriented backend structure with thin API endpoints.
 - Async database access with SQLAlchemy 2 and PostgreSQL constraints for conflict prevention.
-- Idempotent SQL migrations mirrored across bootstrap SQL, numbered migrations, and Alembic.
+- Versioned Alembic upgrades gated before API/worker startup, with real PostgreSQL migration lifecycle tests.
 - Security-sensitive uploads use ownership checks, server-side object validation, and presigned storage.
 - Focused tests cover authentication, security, dashboard contracts, alumni flows, and ORM/schema parity.
 

@@ -11,10 +11,8 @@ services:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
-      - ./database/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -48,7 +46,8 @@ services:
   # Creates the resources bucket on first boot. Without this every upload
   # presign fails against a fresh volume because the bucket does not exist.
   minio-init:
-    image: minio/mc
+    # The server image already includes mc (also used by its healthcheck).
+    image: minio/minio
     container_name: sust_eee_minio_init
     depends_on:
       minio:
@@ -69,6 +68,37 @@ services:
     # after an authorised API call -- see services/resource_service.py.
     restart: "no"
 
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: alembic upgrade head
+    restart: "no"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  seed-dev:
+    image: pgvector/pgvector:pg16
+    profiles: ["dev-seed"]
+    restart: "no"
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGDATABASE: ${POSTGRES_DB:-sust_eee_db}
+    entrypoint: ["/bin/sh", "/seed/seed.sh"]
+    volumes:
+      - ./database/dev:/seed:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   backend:
     build:
       context: ./backend
@@ -76,6 +106,10 @@ services:
     container_name: sust_eee_backend
     restart: always
     depends_on:
+      minio-init:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -98,8 +132,12 @@ services:
     restart: always
     command: celery -A app.core.celery_app.celery_app worker --loglevel=info
     depends_on:
-      - backend
-      - redis
+      migrate:
+        condition: service_completed_successfully
+      backend:
+        condition: service_started
+      redis:
+        condition: service_started
     env_file:
       - .env
 
@@ -111,8 +149,12 @@ services:
     restart: always
     command: celery -A app.core.celery_app.celery_app beat --loglevel=info
     depends_on:
-      - backend
-      - redis
+      migrate:
+        condition: service_completed_successfully
+      backend:
+        condition: service_started
+      redis:
+        condition: service_started
     env_file:
       - .env
 

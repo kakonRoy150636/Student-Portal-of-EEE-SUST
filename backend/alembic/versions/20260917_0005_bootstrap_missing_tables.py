@@ -8,6 +8,7 @@ Mirrors database/migrations/006_bootstrap_missing_tables.sql. Purely additive:
 no DROP and no data loss. Every CREATE is guarded, so re-running is a no-op.
 """
 from alembic import op
+import sqlparse
 
 revision = "20260917_0005"
 down_revision = "20260916_0004"
@@ -16,8 +17,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute(
-        """
+    enum_sql = """
         -- 006 creates only the tables absent from older volumes. The enums those
         -- tables reference are normally present, but CREATE TYPE has no IF NOT
         -- EXISTS, so they are created defensively inside a duplicate_object guard:
@@ -38,7 +38,8 @@ def upgrade() -> None:
             CREATE TYPE borrow_status AS ENUM ('pending_approval', 'approved', 'issued', 'returned', 'overdue', 'rejected');
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
         """
-    )
+    for statement in sqlparse.split(enum_sql):
+        op.execute(statement)
     op.execute(
         """
         CREATE TABLE IF NOT EXISTS attendance_sessions (

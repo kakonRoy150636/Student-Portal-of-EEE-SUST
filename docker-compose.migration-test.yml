@@ -1,0 +1,70 @@
+# Isolated verification overlay; requires Docker Compose >= 2.24.4.
+# Always use a separate project name (README). No host ports or user .env files.
+x-test-environment: &test-environment
+  ENVIRONMENT: test
+  DATABASE_URL: postgresql+asyncpg://migration_test:migration_test@postgres:5432/migration_test
+  REDIS_URL: redis://redis:6379/0
+  SECRET_KEY: migration-test-only-signing-key-never-use-in-production
+  BOOTSTRAP_ADMIN_EMAIL: ""
+  BOOTSTRAP_ADMIN_PASSWORD: ""
+  S3_ENDPOINT_URL: http://minio:9000
+  S3_ACCESS_KEY: migration_test
+  S3_SECRET_KEY: migration_test_password
+
+services:
+  postgres:
+    container_name: !reset null
+    ports: !reset []
+    environment:
+      POSTGRES_USER: migration_test
+      POSTGRES_PASSWORD: migration_test
+      POSTGRES_DB: migration_test
+  migrate:
+    env_file: !reset []
+    environment: *test-environment
+  backend:
+    container_name: !reset null
+    ports: !reset []
+    env_file: !reset []
+    environment: *test-environment
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  celery_worker:
+    container_name: !reset null
+    env_file: !reset []
+    environment: *test-environment
+  celery_beat:
+    container_name: !reset null
+    env_file: !reset []
+    environment: *test-environment
+  redis:
+    container_name: !reset null
+    ports: !reset []
+  minio:
+    container_name: !reset null
+    ports: !reset []
+    environment:
+      MINIO_ROOT_USER: migration_test
+      MINIO_ROOT_PASSWORD: migration_test_password
+  minio-init:
+    container_name: !reset null
+    environment:
+      MINIO_ROOT_USER: migration_test
+      MINIO_ROOT_PASSWORD: migration_test_password
+  frontend:
+    container_name: !reset null
+    ports: !reset []
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  seed-dev:
+    environment:
+      ENVIRONMENT: development
+      PGUSER: migration_test
+      PGPASSWORD: migration_test
+      PGDATABASE: migration_test

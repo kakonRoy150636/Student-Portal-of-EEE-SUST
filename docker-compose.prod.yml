@@ -22,8 +22,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
     volumes:
       - pgdata_prod:/var/lib/postgresql/data
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-      - ./database/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
@@ -63,7 +61,8 @@ services:
   # Creates the (private) bucket once. Kept separate from the backend so the
   # API never needs bucket-admin rights at runtime.
   minio_init:
-    image: minio/mc
+    # Reuse the server image's mc binary instead of a second image download.
+    image: minio/minio
     depends_on:
       minio:
         condition: service_healthy
@@ -78,6 +77,20 @@ services:
       "
     restart: "no"
 
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: alembic upgrade head
+    restart: "no"
+    environment:
+      ENVIRONMENT: production
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   backend:
     build:
       context: ./backend
@@ -88,6 +101,10 @@ services:
     env_file:
       - .env
     depends_on:
+      minio_init:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -118,6 +135,8 @@ services:
       - .env
     command: celery -A app.core.celery_app.celery_app worker --loglevel=warning
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       backend:
         condition: service_healthy
       redis:
@@ -134,6 +153,8 @@ services:
       - .env
     command: celery -A app.core.celery_app.celery_app beat --loglevel=warning
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       backend:
         condition: service_healthy
       redis:

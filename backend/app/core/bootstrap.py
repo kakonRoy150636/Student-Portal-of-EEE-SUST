@@ -1,7 +1,7 @@
 """Create the first super_admin from environment variables at startup.
 
-Why not seed.sql: that file is mounted as a Postgres init script, so anything
-in it is committed to the repository and replayed on every fresh database.
+Why not seed.sql: development reference data is committed to the repository,
+so no administrator credential belongs there. Production never runs that seed.
 Hashing requires bcrypt, which Postgres does not have, so a seeded admin has
 to carry a literal hash -- which is exactly the problem this module solves.
 

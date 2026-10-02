@@ -1,4 +1,5 @@
 -- Development seed data.
+-- Run only via the opt-in seed-dev Compose service after Alembic upgrades.
 --
 -- NOTE: there is deliberately NO user account in this file. The previous
 -- revision seeded a super_admin with a bcrypt hash committed to the

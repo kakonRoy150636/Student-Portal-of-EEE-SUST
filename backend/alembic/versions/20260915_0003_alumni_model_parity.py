@@ -72,6 +72,8 @@ def upgrade() -> None:
             ADD COLUMN IF NOT EXISTS document_name VARCHAR(255)
         """
     )
+    # Drop the old CHECK before mapping its vocabulary to the new one.
+    op.execute("ALTER TABLE scholarship_applications DROP CONSTRAINT IF EXISTS ck_scholarship_applications_status")
     op.execute(
         """
         UPDATE scholarship_applications
