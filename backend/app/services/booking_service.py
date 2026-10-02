@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.booking_repository import BookingRepository
 from app.schemas.booking import BookingCreate
 from app.models.facility import Room, RoomReservation
+from app.services.audit_service import AuditService
 from app.core.exceptions import (
     NotFoundException,
     ResourceConflictException,
@@ -90,6 +91,13 @@ class BookingService:
             reservation.approved_by = None
             reservation.approved_at = None
 
+        await AuditService(self.db).record(
+            action="reservation.decide",
+            entity_type="room_reservation",
+            entity_id=reservation.id,
+            actor_id=actor_id,
+            detail={"decision": decision, "reason": reason or "approved"},
+        )
         await self.db.commit()
         return reservation
 
@@ -107,6 +115,13 @@ class BookingService:
         reservation.cancelled_by = actor_id
         reservation.cancellation_reason = reason
         reservation.cancellation_at = datetime.now(timezone.utc)
+        await AuditService(self.db).record(
+            action="reservation.cancel",
+            entity_type="room_reservation",
+            entity_id=reservation.id,
+            actor_id=actor_id,
+            detail={"reason": reason},
+        )
         await self.db.commit()
         return reservation
 

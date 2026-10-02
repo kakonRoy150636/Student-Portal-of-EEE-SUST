@@ -35,15 +35,20 @@ The student home combines a campus-led visual introduction with live academic me
 
 | Area | Highlights |
 | --- | --- |
-| Authentication | JWT access tokens, rotated refresh tokens, HttpOnly refresh cookies, and RBAC |
-| Academic operations | Course enrolment, schedules, attendance, credit-hour validation, and department dashboards |
-| Booking | Room and lab booking with PostgreSQL GiST conflict prevention |
-| Resources | Presigned S3/MinIO uploads and PostgreSQL full-text search |
-| Projects | Capstone lifecycle, supervisor workflows, and GitHub integration |
-| Career | Opportunities, JSON-Resume profiles, and public portfolios |
-| Notifications | Firebase Cloud Messaging with Celery worker and Beat scheduling |
-| AI assistant | Google Gemini with pgvector and full-text hybrid retrieval |
-| Alumni portal | Alumni verification, directory search, visibility controls, events, mentorship, scholarships, news, and gallery foundations |
+| Authentication | JWT access tokens, rotated refresh tokens with family-wide replay revocation, HttpOnly refresh cookies, and RBAC |
+| Academic operations | Course enrolment with server-side offering validation, role-scoped course lists, the real weekly timetable, attendance, and department dashboards |
+| Booking | Room and lab booking with PostgreSQL GiST conflict prevention and staff decisions |
+| Resources | Multipart upload, server-side verification (extension allowlist, size cap, magic bytes), PostgreSQL full-text search, and short-lived attachment-only download URLs |
+| Projects | Projects read from the database with supervisor, team size and repository link |
+| Career | Verified, unexpired opportunities from the database, most urgent first |
+| Notifications | Firebase Cloud Messaging dispatch with device deactivation, Celery Beat class-alert scanner, in-app notification rows |
+| AI assistant | Retrieval-first answers with citations over an indexed document library; Google Gemini when a key is configured, extractive quoting when it is not |
+| Alumni portal | Alumni verification, full-text directory search, visibility controls, events, mentorship, scholarships, news, and gallery |
+
+Every one of those rows is backed by a database table and a test; see
+[`docs/IMPLEMENTED_VS_PLANNED.md`](docs/IMPLEMENTED_VS_PLANNED.md) for the
+line-by-line status of each endpoint, including the parts that are deliberately
+not built yet.
 
 ## Dashboard Experience
 
@@ -137,7 +142,32 @@ cd Student-Portal-of-EEE-SUST
 cp .env.example .env
 ```
 
-Update `.env` before using external services. At minimum, change `SECRET_KEY` for any non-local environment. Gemini and Firebase credentials are optional for the core dashboard, but required by their respective integrations.
+Update `.env` before using external services. At minimum, change `SECRET_KEY` for any non-local environment.
+
+Everything except the assistant runs without third-party credentials:
+
+| Variable | Without it |
+| --- | --- |
+| `GEMINI_API_KEY` | The assistant still retrieves and answers, quoting the indexed passages instead of generating prose |
+| `FIREBASE_CREDENTIALS_PATH` | Notifications are stored in-app; push dispatch logs `fcm_not_configured` and is skipped |
+| `S3_*` | Resource and avatar uploads fail with 409/503; the rest of the portal is unaffected |
+
+No account is seeded. `database/seed.sql` contains reference data only (courses,
+rooms, semesters); the first administrator is created from the environment:
+
+```bash
+BOOTSTRAP_ADMIN_EMAIL=you@sust.edu
+BOOTSTRAP_ADMIN_PASSWORD=<at least 12 bytes>
+```
+
+On the first start the API creates that account with `must_change_password`, so
+the environment value is a one-time handover credential: until it is replaced,
+the account can only reach the password-change and MFA-enrolment routes. Remove
+the variables afterwards — they are ignored once a super_admin exists. Everyone
+else registers through the portal and is approved by an administrator.
+
+`SECRET_KEY` must be replaced outside development — the app refuses to start with
+the development key when `ENVIRONMENT=production`.
 
 ### Run the local stack
 
@@ -169,14 +199,22 @@ npm --prefix frontend run dev
 
 ### Backend tests
 
-The backend image installs the development extras from `backend/pyproject.toml`.
+The image installs `backend/requirements-dev.txt`, which includes the test extras.
 
 ```bash
+# inside the compose stack
 docker compose exec -T backend python -m pytest -q
-docker compose exec -T backend python -m pytest -q tests/test_schema_parity.py
+
+# or on the host, with a virtualenv
+cd backend && python -m pytest -q
 ```
 
-The schema parity test checks that ORM columns and the bootstrap schema remain aligned. Test failures involving external services require the relevant Redis, PostgreSQL, MinIO, Firebase, or Gemini configuration.
+The suite runs on in-memory SQLite and needs no Redis, MinIO, Gemini or Firebase
+credentials; the seven tests that require PostgreSQL's GiST exclusion constraint
+skip themselves unless `TEST_DATABASE_URL` points at a real database. The schema
+parity test fails the build if any ORM table or column is missing from
+`database/schema.sql` — that check is what caught the missing `updated_at`
+columns described in `database/migrations/009_add_missing_updated_at.sql`.
 
 ### Build the frontend
 
@@ -229,20 +267,37 @@ Use this short path when presenting the project:
 
 ## Engineering Quality
 
-- Domain-oriented backend structure with thin API endpoints.
-- Async database access with SQLAlchemy 2 and PostgreSQL constraints for conflict prevention.
-- Idempotent SQL migrations mirrored across bootstrap SQL, numbered migrations, and Alembic.
-- Security-sensitive uploads use ownership checks, server-side object validation, and presigned storage.
-- Focused tests cover authentication, security, dashboard contracts, alumni flows, and ORM/schema parity.
+- Domain-oriented backend structure with thin API endpoints; services own the rules, repositories own the queries.
+- Async database access with SQLAlchemy 2 and PostgreSQL constraints for conflict prevention (GiST exclusion on room slots, unique keys on refresh tokens and class alerts).
+- bcrypt runs in a worker thread, so a login cannot stall every other request on the event loop.
+- Idempotent SQL migrations mirrored across bootstrap SQL, numbered migrations, and Alembic — with a parity test that fails if the ORM and `schema.sql` ever drift again.
+- Uploads (avatars and resources) are verified server-side: authentication, ownership, extension allowlist, size measurement and magic-byte checks.
+- Focused tests cover authentication, security regressions, dashboard contracts, resources, the assistant, alumni flows, and ORM/schema parity.
+
+## Security
+
+- **Sessions:** 15-minute access tokens (in memory on the client), 7-day refresh tokens stored only as SHA-256 hashes, rotated on every use. Presenting a rotated token revokes the whole family (theft detection).
+- **Token scoping:** a `type` claim separates access, refresh and the short-lived avatar-upload token; each route accepts exactly one.
+- **Throttling:** two independent login counters (per account and per IP) with a delay schedule that exempts correct passwords, plus fixed-window ceilings on registration, refresh, AI queries and uploads.
+- **Enumeration resistance:** login returns one message for unknown, wrong-password and inactive accounts, and always performs a bcrypt comparison so response timing does not leak existence. Signup collisions do not confirm that an address has an account.
+- **Storage:** the bucket is private; only the `avatars/` prefix is anonymously readable and everything else is served through short-lived, attachment-disposition URLs.
+- **Transport/browser:** security headers are set by both nginx and the API (CSP, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`; HSTS in production).
+- **Errors:** constraint violations map to 409, unexpected exceptions to a generic JSON 500 with the traceback kept in the structured log.
+- **Second factor:** TOTP for administrators, with ten single-use recovery codes stored only as SHA-256 hashes. A privileged account that has not enrolled is confined to the enrolment routes.
+- **Sessions:** a per-device list (`/auth/sessions`) built from refresh-token families, with metadata and one-click revocation; changing a password or completing a reset ends every other session.
+- **Audit trail:** approvals, booking decisions, file deletions, password changes/resets and MFA changes are recorded in `audit_logs` and readable by administrators at `GET /admin/audit-logs`.
+- **Housekeeping:** a daily Celery Beat task prunes expired/revoked refresh tokens and spent reset tokens.
+- **CI:** tests, bandit, `pip-audit`, `tsc`, the production build and `npm audit --audit-level=high` run on every push.
 
 ## Roadmap
 
-- Complete public alumni landing content and media management
-- Expand alumni events, scholarship applications, mentorship flows, and career bridging
-- Add production observability and department analytics
+- Postgres-backed CI job for the booking exclusion constraint (currently skipped without a database)
+- Supervisor workflow UI (proposals exist in the schema; no screen yet) and GitHub webhook handling for project repositories
+- Equipment checkout and damage-report screens (models and tables exist; only the inventory list is exposed)
+- Email verification for self-service student signup (password reset is implemented; the email itself is logged when SMTP is unconfigured, see below)
+- Production observability: OpenTelemetry traces and an error tracker behind the existing correlation-id middleware
 - Improve mobile navigation and PWA support
 - Support additional university departments after EEE validation
-- Add automated CI checks for backend tests and frontend builds
 - Publish a short product demo and screenshots for each role
 
 ## Contributing

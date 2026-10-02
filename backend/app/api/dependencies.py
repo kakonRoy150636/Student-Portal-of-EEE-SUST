@@ -7,12 +7,60 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.exceptions import MfaEnrollmentRequiredException, PasswordChangeRequiredException
 from app.models.user import User, UserRole
 from app.models.academic import CourseOfferingTeacher
 
 security_scheme = HTTPBearer(auto_error=True)
 
+# Routes an account may still reach while it must change its password or
+# finish enrolling a second factor. Deliberately tiny: "me" so the client can
+# render the account, logout so it can leave, the session list so it can see
+# and revoke its devices, and the enrolment/change endpoints themselves.
+_ACCOUNT_RESTRICTED_PREFIXES = (
+    "/api/v1/auth/mfa/",
+    "/api/v1/auth/sessions",
+)
+_ACCOUNT_RESTRICTED_PATHS = {
+    "/api/v1/auth/me",
+    "/api/v1/auth/logout",
+    "/api/v1/auth/change-password",
+}
+
+# A privileged account that has not enrolled its second factor may only reach
+# the enrolment routes (plus the same account-maintenance ones above).
+_MFA_ENROLMENT_PATHS = {
+    "/api/v1/auth/mfa/setup",
+    "/api/v1/auth/mfa/enable",
+}
+
+
+def _assert_account_ready(user: User, request: Request) -> None:
+    """Refuse a session whose account has unfinished security chores.
+
+    Both checks are enforced here rather than only in the client, so a client
+    that ignores ``must_change_password`` (or an attacker replaying a stolen
+    token) still cannot use the account for anything else. The flags are
+    cleared by /auth/change-password and /auth/mfa/enable respectively.
+    """
+    path = request.url.path
+    if user.must_change_password and path not in _ACCOUNT_RESTRICTED_PATHS and not path.startswith(
+        _ACCOUNT_RESTRICTED_PREFIXES
+    ):
+        raise PasswordChangeRequiredException()
+
+    if (
+        user.role == UserRole.SUPER_ADMIN
+        and settings.MFA_REQUIRED_FOR_SUPER_ADMIN
+        and not user.mfa_enabled
+        and path not in (_ACCOUNT_RESTRICTED_PATHS | _MFA_ENROLMENT_PATHS)
+        and not path.startswith(_ACCOUNT_RESTRICTED_PREFIXES)
+    ):
+        raise MfaEnrollmentRequiredException()
+
+
 async def get_current_user(
+    request: Request,
     cred: HTTPAuthorizationCredentials = Depends(security_scheme),
     db: AsyncSession = Depends(get_db)
 ) -> User:
@@ -48,6 +96,7 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User not active."
         )
+    _assert_account_ready(user, request)
     return user
 
 

@@ -62,6 +62,14 @@ def _get_redis() -> aioredis.Redis:
             settings.REDIS_URL,
             encoding="utf-8",
             decode_responses=True,
+            # Both throttles fail *open* when Redis is unreachable, and both run
+            # on the request path. Left at the defaults, a dead or firewalled
+            # Redis makes every login and every signup wait for the OS connect
+            # timeout (seconds) before failing open -- an outage in the counter
+            # store becoming an outage of login, which is exactly what failing
+            # open is meant to avoid. Quarter-second bounds keep that promise.
+            socket_connect_timeout=0.25,
+            socket_timeout=0.25,
         )
     return _redis
 
@@ -177,5 +185,41 @@ async def record_login_success(identifier: str) -> None:
     """Clear the per-account counter after a successful login."""
     try:
         await _get_redis().delete(_account_key(identifier))
+    except (RedisError, OSError):
+        return
+
+
+# ── generic fixed-window limiter ────────────────────────────────────────────
+#
+# Login has its own delay-based throttle above. The remaining write paths
+# (registration, AI queries, avatar uploads, resource uploads) need a plain
+# "N per window" ceiling instead: the goal there is to bound work and abuse,
+# not to be patient with a mistyping human. A fixed window is deliberate --
+# it is one INCR plus one EXPIRE, cheap enough to run on every call, and a
+# burst at a window boundary is acceptable for these endpoints.
+#
+# Fails *open* if Redis is unreachable, for the same reason login does: an
+# outage in the counter store must not become an outage of signup or uploads.
+
+async def check_rate_limit(bucket: str, *, limit: int, window_seconds: int) -> bool:
+    """Count one attempt in ``bucket``; return False when the cap is exceeded.
+
+    Callers raise 429 on False. ``bucket`` is a namespaced, pre-hashed key.
+    """
+    try:
+        client = _get_redis()
+        key = f"ratelimit:{bucket}"
+        count = await client.incr(key)
+        if count == 1:
+            await client.expire(key, window_seconds)
+        return count <= limit
+    except (RedisError, OSError, ValueError):
+        return True
+
+
+async def reset_rate_limit(bucket: str) -> None:
+    """Clear a bucket (used by tests and by successful-login style flows)."""
+    try:
+        await _get_redis().delete(f"ratelimit:{bucket}")
     except (RedisError, OSError):
         return

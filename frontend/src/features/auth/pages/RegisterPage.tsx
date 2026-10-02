@@ -151,7 +151,7 @@ export default function RegisterPage() {
         <Input placeholder="Full name" value={form.full_name} onChange={(event) => update('full_name', event.target.value)} required />
         {role !== 'teacher' && <Input placeholder="Student ID" value={form.identifier} onChange={(event) => update('identifier', event.target.value)} required />}
         <Input type="email" placeholder="Institutional email" value={form.email} onChange={(event) => update('email', event.target.value)} required />
-        <Input type="password" placeholder="Password (minimum 6 characters)" value={form.password} onChange={(event) => update('password', event.target.value)} minLength={6} required />
+        <Input type="password" placeholder="Password (minimum 8 characters)" value={form.password} onChange={(event) => update('password', event.target.value)} minLength={8} required />
         {role !== 'teacher' && <div className="grid grid-cols-2 gap-2"><Input placeholder="Session year" value={form.session_year} onChange={(event) => update('session_year', event.target.value)} required /><Input placeholder="Current term" value={form.current_term} onChange={(event) => update('current_term', event.target.value)} required /></div>}
 
         {/* Profile photo: chosen file is previewed and its size stated, so it is

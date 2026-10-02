@@ -264,7 +264,14 @@ async def make_user(
     password: str = "Passw0rd!23",
     is_active: bool = True,
 ) -> User:
-    """Persist a user with a known password and return the ORM instance."""
+    """Persist a user with a known password and return the ORM instance.
+
+    Administrators are created already enrolled in a second factor: that is the
+    state a real deployment reaches in its first five minutes (the bootstrap
+    account is forced through enrolment), and without it every admin fixture
+    would trip the ``mfa_enrollment_required`` gate and test nothing else.
+    Tests that exercise the gate itself clear the flag after creation.
+    """
     suffix = uuid.uuid4().hex[:8]
     user = User(
         identifier=identifier or f"id-{suffix}",
@@ -273,6 +280,8 @@ async def make_user(
         full_name=f"Test {role.value}",
         role=role,
         is_active=is_active,
+        mfa_enabled=role == UserRole.SUPER_ADMIN,
+        mfa_secret="JBSWY3DPEHPK3PXP" if role == UserRole.SUPER_ADMIN else None,
     )
     db.add(user)
     await db.commit()

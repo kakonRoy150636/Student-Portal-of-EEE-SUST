@@ -21,7 +21,15 @@ RUN npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-# নতুন nginx.conf কন্টেইনারে কপি করার লাইন
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# nginx:alpine starts as root to bind :80 and drops to nginx for workers.
+# Everything the worker touches is already owned by that user; keep it that
+# way explicitly so a future COPY cannot import root-owned files.
+RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/run \
+ && touch /var/run/nginx.pid \
+ && chown nginx:nginx /var/run/nginx.pid
+
+USER nginx
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

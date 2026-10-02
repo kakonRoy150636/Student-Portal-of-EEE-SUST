@@ -95,3 +95,61 @@ def test_parity_migration_exists_and_is_idempotent():
     for column in ("slot_range", "event_type", "capacity", "announced_at",
                    "document_key", "document_name", "is_visible"):
         assert f"ADD COLUMN IF NOT EXISTS {column}" in text, f"{column} is not idempotent"
+
+
+# ── whole-schema parity ─────────────────────────────────────────────────────
+#
+# The original checks covered only the alumni tables, which is how
+# document_chunks.embedding (declared vector(768) NOT NULL in schema.sql while
+# the ORM did not map it) and academic_resources.status drifted unnoticed. The
+# two tests below compare every mapped table and column against schema.sql.
+
+def _all_schema_tables() -> set[str]:
+    return _table_names_in_schema_sql()
+
+
+def _all_schema_columns() -> dict[str, set[str]]:
+    text = SCHEMA_SQL.read_text(encoding="utf-8")
+    tables: dict[str, set[str]] = {}
+    for match in re.finditer(
+        r"CREATE TABLE (?:IF NOT EXISTS )?(\w+)\s*\((.*?)\n\);",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    ):
+        name = match.group(1).lower()
+        columns: set[str] = set()
+        for line in match.group(2).splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith(("--", "CONSTRAINT", "PRIMARY KEY", "UNIQUE", "CHECK", "EXCLUDE")):
+                continue
+            columns.add(stripped.split()[0].lower())
+        tables[name] = columns
+    return tables
+
+
+def test_every_orm_table_exists_in_schema_sql():
+    missing = sorted(set(Base.metadata.tables) - _all_schema_tables())
+    # ALTER TABLE ... ADD COLUMN additions (users.avatar_key) are counted by the
+    # column test below rather than here.
+    assert missing == [], f"tables declared in the ORM but absent from schema.sql: {missing}"
+
+
+def test_every_orm_column_exists_in_schema_sql():
+    schema_columns = _all_schema_columns()
+    text = SCHEMA_SQL.read_text(encoding="utf-8")
+    altered = {
+        (table.lower(), column.lower())
+        for table, column in re.findall(
+            r"ALTER TABLE (\w+) ADD COLUMN(?: IF NOT EXISTS)? (\w+)", text, flags=re.IGNORECASE
+        )
+    }
+    drift: list[str] = []
+    for table in Base.metadata.sorted_tables:
+        expected = schema_columns.get(table.name)
+        if expected is None:
+            continue  # covered by the table test above
+        for column in table.columns:
+            key = (table.name, column.name)
+            if column.name not in expected and key not in altered:
+                drift.append(f"{table.name}.{column.name}")
+    assert drift == [], f"ORM columns missing from schema.sql: {drift}"

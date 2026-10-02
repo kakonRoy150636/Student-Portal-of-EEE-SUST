@@ -17,9 +17,27 @@ export interface User {
   is_active: boolean;
   /** Storage key of the uploaded avatar, e.g. "avatars/<uuid>.jpg". */
   avatar_key?: string | null;
+  /** True for a bootstrapped admin or after a reset: only security routes work. */
+  must_change_password?: boolean;
+  mfa_enabled?: boolean;
 }
 
 export interface LoginCredentials {
   identifier: string;
   password: string;
+}
+
+export interface MfaSetup {
+  secret: string;
+  otpauth_uri: string;
+}
+
+export interface SessionSummary {
+  family_id: string;
+  created_at?: string | null;
+  last_used_at?: string | null;
+  ip_address?: string | null;
+  user_agent?: string | null;
+  is_current: boolean;
+  is_active: boolean;
 }

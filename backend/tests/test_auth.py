@@ -125,7 +125,15 @@ async def test_refresh_rotates_and_revokes_old_token(client, db):
 
 
 async def test_reusing_a_rotated_refresh_token_revokes_the_whole_family(client, db):
-    """Theft detection: replaying a rotated token must kill the family."""
+    """Theft detection: replaying a rotated token *after the race window* kills
+    the family.
+
+    A duplicate presentation moments after rotation is treated as a race (two
+    tabs, or React StrictMode mounting twice) and covered by
+    tests/test_account_security.py::test_duplicate_refresh_inside_grace_window_does_not_kill_the_family.
+    Here the rotation is backdated past that window, which is what a genuinely
+    stolen token looks like, and the family must die.
+    """
     user = await make_user(db, identifier="2023338054", password=STUDENT_PASSWORD)
 
     login = await client.post(
@@ -137,6 +145,19 @@ async def test_reusing_a_rotated_refresh_token_revokes_the_whole_family(client, 
     first_refresh = await client.post("/api/v1/auth/refresh")
     assert first_refresh.status_code == 200
     live_cookie = first_refresh.cookies["refresh_token"]
+
+    # Age the rotation past the grace window: the newly minted token's
+    # created_at is now older than REFRESH_RACE_GRACE_SECONDS.
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import select
+
+    rotated_row = (
+        await db.execute(
+            select(RefreshToken).order_by(RefreshToken.created_at.desc()).limit(1)
+        )
+    ).scalar_one()
+    rotated_row.created_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+    await db.commit()
 
     # Attacker replays the stolen token from a separate client that holds only
     # the stolen cookie -- it must not share the legitimate client's jar.
@@ -150,11 +171,16 @@ async def test_reusing_a_rotated_refresh_token_revokes_the_whole_family(client, 
     assert replay.status_code == 401
 
     # The now-legitimate session must be dead too: the family was revoked.
-    from sqlalchemy import select
-
+    # The requests above committed through their own sessions, and this test's
+    # session still holds the rotated row it backdated -- expire it so the
+    # query below reads committed state instead of a stale identity-map copy.
+    # `user.id` is captured first because expiring the instance would make the
+    # attribute access itself attempt (disallowed) lazy IO in async code.
+    user_id = user.id
+    db.expire_all()
     rows = (
         await db.execute(
-            select(RefreshToken).where(RefreshToken.user_id == user.id)
+            select(RefreshToken).where(RefreshToken.user_id == user_id)
         )
     ).scalars().all()
     assert rows, "expected stored refresh tokens"

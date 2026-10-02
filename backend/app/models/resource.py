@@ -10,7 +10,10 @@ class AcademicResource(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(String(500), nullable=True)
     category: Mapped[str] = mapped_column(String(50), nullable=False)
-    course_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("courses.id"), nullable=False)
+    # Nullable: a resource can be department-wide instead of course-specific.
+    course_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("courses.id"), nullable=True
+    )
     uploader_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     file_key: Mapped[str] = mapped_column(String(512), nullable=False)
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -18,6 +21,10 @@ class AcademicResource(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
     download_count: Mapped[int] = mapped_column(Integer, default=0)
     is_faculty_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    # 'pending' until the stored object has been measured and verified;
+    # 'ready' once it may be listed and downloaded. Rows left pending are
+    # orphaned uploads and are the scanner's cleanup target.
+    status: Mapped[str] = mapped_column(String(20), default="ready", nullable=False)
 
 class BookExchange(Base):
     __tablename__ = "book_exchanges"

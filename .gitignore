@@ -6,6 +6,8 @@ __pycache__/
 env/
 node_modules/
 dist/
+.coverage
+htmlcov/
 .env
 .env.local
 *.log
@@ -16,3 +18,12 @@ miniodata/
 .ruff_cache/
 .mypy_cache/
 coverage/
+
+# Database dumps are point-in-time snapshots of real data; they belong in
+# external storage, never in the repository.
+.backups/
+*.sql.gz
+
+# Local deployment env files (only .env.example is committed)
+.env.production
+.env.*.local

@@ -1,64 +1,51 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import type { AxiosError } from 'axios';
 import { User, UserRole, LoginCredentials } from '@/types/auth';
-import { api, setAccessToken } from '@/lib/axios';
+import { api, restoreSession, setAccessToken } from '@/lib/axios';
+
+/** What a login attempt resolved to. */
+export interface LoginOutcome {
+  mfaRequired: boolean;
+  mfaToken?: string;
+}
 
 interface AuthContextType {
   user: User | null;
   role: UserRole | null;
   isAuthenticated: boolean;
-  login: (creds: LoginCredentials) => Promise<void>;
+  login: (creds: LoginCredentials) => Promise<LoginOutcome>;
+  completeMfaLogin: (mfaToken: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Re-read the account (after changing a password, enabling MFA, …). */
+  refreshUser: () => Promise<void>;
   loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const TOKEN_KEY = 'access_token';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-    setAccessToken(token);
-
     let cancelled = false;
-    // A stale access token is normal here: the axios interceptor silently calls
-    // /auth/refresh and replays this request. So a rejection means either that
-    // refresh failed too (an authoritative 401 -- the session really is over)
-    // or that the API could not be reached at all. The second case is what a
-    // cold start or a restart looks like from the browser, and deleting the
-    // token there would sign people out for no reason -- so retry a few times
-    // and only clear the session on a real 401.
-    const BOOTSTRAP_ATTEMPTS = 3;
+
+    // No token is persisted anywhere, so "am I signed in?" is answered by the
+    // HttpOnly refresh cookie alone. A 401 here is the normal signed-out case,
+    // not an error worth retrying.
     const bootstrap = async () => {
-      for (let attempt = 0; attempt < BOOTSTRAP_ATTEMPTS; attempt += 1) {
-        try {
-          const { data } = await api.get('/auth/me');
-          if (!cancelled) setUser(data);
-          return;
-        } catch (error) {
-          const status = (error as AxiosError).response?.status;
-          if (status === 401 || status === 403) {
-            localStorage.removeItem(TOKEN_KEY);
-            setAccessToken(null);
-            return;
-          }
-          if (attempt < BOOTSTRAP_ATTEMPTS - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
-          }
+      try {
+        const restored = await restoreSession();
+        if (!cancelled) setUser(restored);
+      } catch {
+        if (!cancelled) {
+          setAccessToken(null);
+          setUser(null);
         }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
-    void bootstrap().finally(() => {
-      if (!cancelled) setLoading(false);
-    });
+    void bootstrap();
 
     return () => {
       cancelled = true;
@@ -73,24 +60,50 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => window.removeEventListener('auth:session-expired', onExpired);
   }, []);
 
-  const login = async (creds: LoginCredentials) => {
+  const login = async (creds: LoginCredentials): Promise<LoginOutcome> => {
     const { data } = await api.post('/auth/login', creds);
-    const token = data.tokens.access_token;
-    localStorage.setItem(TOKEN_KEY, token);
-    setAccessToken(token);
+    if (data?.mfa_required) {
+      // Password accepted, one-time code outstanding: still not a session.
+      return { mfaRequired: true, mfaToken: data.mfa_token as string };
+    }
+    setAccessToken(data.tokens.access_token);
+    setUser(data.user);
+    return { mfaRequired: false };
+  };
+
+  const completeMfaLogin = async (mfaToken: string, code: string) => {
+    const { data } = await api.post('/auth/mfa/verify', { mfa_token: mfaToken, code });
+    setAccessToken(data.tokens.access_token);
     setUser(data.user);
   };
 
+  const refreshUser = async () => {
+    const { data } = await api.get('/auth/me');
+    setUser(data);
+  };
+
   const logout = async () => {
-    try { await api.post('/auth/logout'); } finally {
-      localStorage.removeItem(TOKEN_KEY);
+    try {
+      await api.post('/auth/logout');
+    } finally {
       setAccessToken(null);
       setUser(null);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, role: user?.role ?? null, isAuthenticated: !!user, login, logout, loading }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        role: user?.role ?? null,
+        isAuthenticated: !!user,
+        login,
+        completeMfaLogin,
+        logout,
+        refreshUser,
+        loading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -98,6 +111,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be in AuthProvider");
+  if (!ctx) throw new Error('useAuth must be in AuthProvider');
   return ctx;
 };

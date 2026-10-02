@@ -8,6 +8,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.pagination import page
 from app.api.dependencies import RequireRole, get_current_user
 from app.core.database import get_db
 from app.models.user import User, UserRole
@@ -113,10 +114,12 @@ async def submit_claim(
 
 @router.get("/events", response_model=list[EventResponse])
 async def list_events(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0, le=100_000),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return await AlumniService(db).list_events(user)
+    return page(await AlumniService(db).list_events(user), limit, offset)
 
 
 @router.get("/events/{event_id}", response_model=EventResponse)
@@ -149,10 +152,12 @@ async def rsvp_event(
 
 @router.get("/scholarships", response_model=list[ScholarshipResponse])
 async def list_scholarships(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0, le=100_000),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return await AlumniService(db).list_scholarships(user)
+    return page(await AlumniService(db).list_scholarships(user), limit, offset)
 
 
 @router.post("/scholarships", response_model=ScholarshipResponse, status_code=201)
@@ -193,10 +198,12 @@ async def review_application(
 
 @router.get("/mentors", response_model=list[AlumniProfileResponse])
 async def list_mentors(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0, le=100_000),
     user: User = Depends(alumni_or_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    return await AlumniService(db).list_mentors(user)
+    return page(await AlumniService(db).list_mentors(user), limit, offset)
 
 
 @router.post("/mentorship", response_model=MentorshipPairResponse, status_code=201)
@@ -229,8 +236,11 @@ async def decline_mentorship(
 
 
 @router.get("/news", response_model=list[NewsPostResponse])
-async def list_news(db: AsyncSession = Depends(get_db)):
-    return await AlumniService(db).list_news()
+async def list_news(
+    limit: int = Query(default=20, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+):
+    return page(await AlumniService(db).list_news(), limit)
 
 
 @router.get("/news/{slug}", response_model=NewsPostResponse)
@@ -239,8 +249,12 @@ async def get_news(slug: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/gallery", response_model=list[GalleryAlbumResponse])
-async def list_gallery(db: AsyncSession = Depends(get_db)):
-    return await AlumniService(db).list_gallery()
+async def list_gallery(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0, le=100_000),
+    db: AsyncSession = Depends(get_db),
+):
+    return page(await AlumniService(db).list_gallery(), limit, offset)
 
 
 @router.get(
@@ -248,10 +262,12 @@ async def list_gallery(db: AsyncSession = Depends(get_db)):
     response_model=list[AlumniProfileResponse],
 )
 async def pending_verifications(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0, le=100_000),
     user: User = Depends(admin_only),
     db: AsyncSession = Depends(get_db),
 ):
-    return await AlumniService(db).list_pending_verifications()
+    return page(await AlumniService(db).list_pending_verifications(), limit, offset)
 
 
 @router.patch("/admin/approve/{profile_id}", response_model=AlumniProfileResponse)

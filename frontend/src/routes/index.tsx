@@ -9,6 +9,9 @@ import { RouteFallback } from '@/components/shared/PageSkeleton';
 
 const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'));
 const RegisterPage = lazy(() => import('@/features/auth/pages/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('@/features/auth/pages/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('@/features/auth/pages/ResetPasswordPage'));
+const AccountSecurityPage = lazy(() => import('@/features/account/pages/AccountSecurityPage'));
 const DashboardPage = lazy(() => import('@/features/dashboard/pages/RoleDashboardPage'));
 const SchedulePage = lazy(() => import('@/features/schedule/pages/SchedulePage'));
 const RoomBookingPage = lazy(() => import('@/features/room-booking/pages/RoomBookingPage'));
@@ -34,6 +37,8 @@ export const router = createBrowserRouter([
     children: [
       { path: 'login', element: <Suspense fallback={<Fallback />}><LoginPage /></Suspense> },
       { path: 'register', element: <Suspense fallback={<Fallback />}><RegisterPage /></Suspense> },
+      { path: 'forgot-password', element: <Suspense fallback={<Fallback />}><ForgotPasswordPage /></Suspense> },
+      { path: 'reset-password', element: <Suspense fallback={<Fallback />}><ResetPasswordPage /></Suspense> },
       { index: true, element: <Navigate to="/auth/login" replace /> }
     ]
   },
@@ -54,6 +59,7 @@ export const router = createBrowserRouter([
       { path: 'ai', element: <Suspense fallback={<Fallback />}><AIAssistantPage /></Suspense> },
       { path: 'admin', element: <ProtectedRoute roles={[UserRole.SUPER_ADMIN]}><Suspense fallback={<Fallback />}><AdminPanelPage /></Suspense></ProtectedRoute> },
       { path: 'notifications', element: <Suspense fallback={<Fallback />}><NotificationsPage /></Suspense> },
+      { path: 'account/security', element: <Suspense fallback={<Fallback />}><AccountSecurityPage /></Suspense> },
       { path: 'alumni/directory', element: <ProtectedRoute roles={[UserRole.ALUMNI, UserRole.SUPER_ADMIN]}><Suspense fallback={<Fallback />}><AlumniDirectoryPage /></Suspense></ProtectedRoute> },
       { path: 'alumni/events', element: <ProtectedRoute roles={[UserRole.ALUMNI, UserRole.SUPER_ADMIN]}><Suspense fallback={<Fallback />}><AlumniEventsPage /></Suspense></ProtectedRoute> }
     ]

@@ -14,6 +14,13 @@ class RefreshToken(Base, UUIDPrimaryKeyMixin):
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    # Last time this token was presented at /auth/refresh. Powers the session
+    # list ("when was this device last active") and is refreshed on rotation.
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Where the session was created, shown to the account holder so they can
+    # recognise -- or revoke -- a device that is not theirs.
+    ip_address: Mapped[str | None] = mapped_column(String(45))
+    user_agent: Mapped[str | None] = mapped_column(String(255))
 
 class PasswordResetToken(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "password_reset_tokens"

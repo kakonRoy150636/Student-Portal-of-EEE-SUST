@@ -51,13 +51,50 @@ class NotificationService:
             body=f"Your lecture starts in 10 minutes at {room}.",
         )
 
-    async def notify_user(self, user_id: uuid.UUID, title: str, body: str, data: dict | None = None) -> Notification:
+    async def notify_user(
+        self, user_id: uuid.UUID, title: str, body: str, data: dict | None = None
+    ) -> Notification:
+        """Persist an in-app notification and push it to the user's devices.
+
+        Persisting first means the notification is not lost if FCM is
+        unreachable or unconfigured; the push is best-effort and a rejected
+        token is deactivated rather than retried forever.
+        """
         notification = Notification(
             recipient_id=user_id,
-            title=title,
-            body=body,
+            title=title[:200],
+            body=body[:500],
             data_payload=data or {},
         )
         self.db.add(notification)
+
+        if await self._push_enabled(user_id):
+            for device in await self._active_devices(user_id):
+                delivered = dispatch_push_notification(
+                    token=device.fcm_token, title=title, body=body, data=data
+                )
+                if delivered:
+                    notification.notified_at = datetime.now(timezone.utc)
+                else:
+                    device.is_active = False
+
         await self.db.commit()
         return notification
+
+    async def _push_enabled(self, user_id: uuid.UUID) -> bool:
+        pref = (
+            await self.db.execute(
+                select(NotificationPreference).where(NotificationPreference.user_id == user_id)
+            )
+        ).scalar_one_or_none()
+        return True if pref is None else bool(pref.enable_push)
+
+    async def _active_devices(self, user_id: uuid.UUID) -> list[UserDevice]:
+        rows = (
+            await self.db.execute(
+                select(UserDevice).where(
+                    UserDevice.user_id == user_id, UserDevice.is_active.is_(True)
+                )
+            )
+        ).scalars().all()
+        return list(rows)

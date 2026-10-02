@@ -32,6 +32,7 @@ from app.models.alumni import (  # noqa: F401
     ScholarshipApplication,
 )
 from app.models.attendance import AttendanceRecord, AttendanceSession  # noqa: F401
+from app.models.audit import AuditLog  # noqa: F401
 from app.models.auth import PasswordResetToken, RefreshToken  # noqa: F401
 from app.models.career import CareerOpportunity, StudentCVProfile, StudentPortfolio  # noqa: F401
 from app.models.facility import Room, RoomReservation  # noqa: F401

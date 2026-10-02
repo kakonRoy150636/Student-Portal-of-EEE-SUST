@@ -30,13 +30,53 @@ class Settings(BaseSettings):
     ]
 
     GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_EMBEDDING_MODEL: str = "text-embedding-004"
+    # Must match the `vector(768)` column in schema.sql; a model with a
+    # different output width is rejected rather than stored.
+    EMBEDDING_DIM: int = 768
+    # Retrieval depth for the academic assistant. Five chunks is enough
+    # context for a course question and keeps the prompt (and cost) bounded.
+    AI_RETRIEVAL_TOP_K: int = 5
+    AI_MAX_QUERIES_PER_HOUR: int = 30
+
     FIREBASE_CREDENTIALS_PATH: str = "./firebase-service-account.json"
+    FCM_ENABLED: bool = True
+    TIMEZONE: str = "Asia/Dhaka"
 
     S3_ENDPOINT_URL: str = "http://minio:9000"
     S3_PUBLIC_ENDPOINT_URL: str = "http://localhost:9000"
     S3_ACCESS_KEY: str = "minioadmin"
     S3_SECRET_KEY: str = "minioadmin"
     S3_BUCKET_NAME: str = "sust-eee-resources"
+
+    # --- bootstrapping -----------------------------------------------------
+    # There is no seeded administrator any more (see database/seed.sql). When
+    # both values below are set and no super_admin exists yet, startup creates
+    # one with must_change_password=True. Unset means no account is created.
+    BOOTSTRAP_ADMIN_EMAIL: str = ""
+    BOOTSTRAP_ADMIN_IDENTIFIER: str = "admin"
+    BOOTSTRAP_ADMIN_PASSWORD: str = ""
+    BOOTSTRAP_ADMIN_NAME: str = "System Administrator"
+
+    # --- second factor -----------------------------------------------------
+    # A super_admin that has not enrolled TOTP can still sign in, but only to
+    # reach the MFA enrolment routes. Set False only for an environment that
+    # genuinely cannot use an authenticator app.
+    MFA_REQUIRED_FOR_SUPER_ADMIN: bool = True
+    MFA_ISSUER: str = "SUST EEE Portal"
+    MFA_VALID_WINDOW: int = 1  # accept the adjacent 30 s step for clock skew
+
+    # --- password reset ----------------------------------------------------
+    # Base URL the reset link points at (the frontend origin).
+    PUBLIC_APP_URL: str = "http://localhost:5173"
+    PASSWORD_RESET_TOKEN_MINUTES: int = 30
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = "no-reply@sust-eee.local"
+    SMTP_USE_TLS: bool = True
 
     class Config:
         env_file = ".env"

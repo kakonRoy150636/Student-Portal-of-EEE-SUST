@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, UUIDPrimaryKeyMixin, TimestampMixin
+from app.models.types import StringArray
 
 if TYPE_CHECKING:
     from app.models.alumni import AlumniProfile
@@ -34,6 +35,20 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         index=True,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Set when an account is created on someone else's behalf (the environment
+    # bootstrap admin) or after a password reset. While true, get_current_user
+    # only lets the holder reach the routes needed to set a new password and
+    # finish enrolling MFA -- so a temporary credential cannot be used as a
+    # working session.
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
+    # TOTP (RFC 6238). The secret is written by /auth/mfa/setup and only counts
+    # once /auth/mfa/enable has verified a code from it.
+    mfa_secret: Mapped[Optional[str]] = mapped_column(String(64))
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    # SHA-256 hashes of one-time recovery codes, so a lost authenticator does
+    # not lock an administrator out permanently. Hashed for the same reason a
+    # password is: the database should not hold a working second factor.
+    mfa_recovery_hashes: Mapped[Optional[list]] = mapped_column(StringArray())
 
     student_profile: Mapped[Optional["StudentProfile"]] = relationship("StudentProfile", back_populates="user", uselist=False)
     faculty_profile: Mapped[Optional["FacultyProfile"]] = relationship("FacultyProfile", back_populates="user", uselist=False)
@@ -59,6 +74,6 @@ class FacultyProfile(Base):
     designation: Mapped[str] = mapped_column(String(100), nullable=False)
     room_number: Mapped[Optional[str]] = mapped_column(String(50))
     office_hours: Mapped[Optional[str]] = mapped_column(String(255))
-    research_areas: Mapped[Optional[list]] = mapped_column(ARRAY(String(200)))
+    research_areas: Mapped[Optional[list]] = mapped_column(StringArray())
 
     user: Mapped["User"] = relationship("User", back_populates="faculty_profile")

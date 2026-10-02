@@ -63,3 +63,23 @@ def create_upload_token(user_id: str, expires_delta: timedelta | None = None) ->
         settings.SECRET_KEY,
         algorithm=settings.ALGORITHM,
     )
+
+MFA_TOKEN_EXPIRE_MINUTES = 5
+
+
+def create_mfa_token(user_id: str) -> str:
+    """Short-lived token for the second step of a two-factor login.
+
+    Scoped with ``type=mfa`` so it cannot be used as an access token, and short
+    enough that an intercepted challenge cannot be replayed much later.
+    """
+    return jwt.encode(
+        {
+            "sub": str(user_id),
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=MFA_TOKEN_EXPIRE_MINUTES),
+            "iat": datetime.now(timezone.utc),
+            "type": "mfa",
+        },
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )

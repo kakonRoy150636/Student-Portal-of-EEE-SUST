@@ -1,6 +1,12 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { env } from '@/config/env';
 
+// The access token lives in a module-level variable only. It is never written
+// to localStorage, sessionStorage or a readable cookie, so an XSS payload
+// cannot lift a session out of storage; it would have to run inside this page
+// and use the API as the user, which the CSP and the HttpOnly refresh cookie
+// limit in duration and scope. A page reload simply performs one silent
+// /auth/refresh against the cookie.
 let token: string | null = null;
 export const setAccessToken = (newToken: string | null) => { token = newToken; };
 
@@ -24,6 +30,15 @@ api.interceptors.request.use((config) => {
 // request, and let the user reach a genuine login screen only when that fails.
 const REFRESH_PATH = '/auth/refresh';
 
+// These routes either establish the session (so a refresh would be circular)
+// or are the refresh call itself (retrying it is what trips replay detection).
+const NO_RETRY_PREFIXES = [
+  '/auth/refresh',
+  '/auth/login',
+  '/auth/mfa/verify',
+  '/auth/password-reset',
+];
+
 let refreshInFlight: Promise<string> | null = null;
 
 const requestNewAccessToken = (): Promise<string> => {
@@ -37,7 +52,6 @@ const requestNewAccessToken = (): Promise<string> => {
         const newToken = data?.tokens?.access_token as string | undefined;
         if (!newToken) throw new Error('Refresh response contained no access token');
         token = newToken;
-        localStorage.setItem('access_token', newToken);
         return newToken;
       })
       .finally(() => {
@@ -49,7 +63,6 @@ const requestNewAccessToken = (): Promise<string> => {
 
 const clearSession = () => {
   token = null;
-  localStorage.removeItem('access_token');
   if (typeof window !== 'undefined') {
     // Bump a value AuthContext watches so it can clear the cached user too.
     window.dispatchEvent(new Event('auth:session-expired'));
@@ -64,9 +77,10 @@ api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const config = error.config as RetriableConfig | undefined;
-    const isAuthRoute = config?.url?.includes('/auth/');
+    const url = config?.url ?? '';
+    const isNoRetryRoute = NO_RETRY_PREFIXES.some((prefix) => url.includes(prefix));
 
-    if (error.response?.status === 401 && config && !config._retried && !isAuthRoute) {
+    if (error.response?.status === 401 && config && !config._retried && !isNoRetryRoute) {
       config._retried = true;
       try {
         const newToken = await requestNewAccessToken();
@@ -86,3 +100,32 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+/** Restore a session from the HttpOnly refresh cookie (used on page load). */
+let restoreInFlight: Promise<import('@/types/auth').User | null> | null = null;
+
+export const restoreSession = (): Promise<import('@/types/auth').User | null> => {
+  // Single-flight because React StrictMode mounts effects twice in dev: two
+  // parallel refreshes would present the same rotating cookie, and the second
+  // one looks exactly like a stolen-token replay to the server's family
+  // revocation.
+  if (!restoreInFlight) {
+    restoreInFlight = api
+      .post(REFRESH_PATH)
+      .then(({ data }) => {
+        const restored = data?.tokens?.access_token as string | undefined;
+        if (restored) token = restored;
+        return (data?.user as import('@/types/auth').User) ?? null;
+      })
+      .finally(() => {
+        restoreInFlight = null;
+      });
+  }
+  return restoreInFlight;
+};
+
+/** Machine-readable error code from the API body, when present. */
+export const errorCode = (error: unknown): string | undefined => {
+  const body = (error as AxiosError<{ code?: string }>)?.response?.data;
+  return body?.code;
+};

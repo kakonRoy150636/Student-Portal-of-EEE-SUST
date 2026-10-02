@@ -21,6 +21,16 @@ CREATE TABLE users (
     full_name VARCHAR(150) NOT NULL,
     role user_role NOT NULL DEFAULT 'student',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    -- True for the environment-bootstrapped administrator and after a password
+    -- reset: the holder can authenticate but only reach the routes that set a
+    -- new password / finish MFA enrolment.
+    must_change_password BOOLEAN NOT NULL DEFAULT FALSE,
+    -- TOTP second factor (RFC 6238). Written by /auth/mfa/setup, trusted only
+    -- after /auth/mfa/enable verifies a code. Recovery codes are stored as
+    -- SHA-256 hashes so the table never holds a usable second factor.
+    mfa_secret VARCHAR(64),
+    mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    mfa_recovery_hashes TEXT[],
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -52,7 +62,10 @@ CREATE TABLE refresh_tokens (
     token_hash VARCHAR(64) NOT NULL UNIQUE,
     is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
     expires_at TIMESTAMPTZ NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMPTZ,
+    ip_address VARCHAR(45),
+    user_agent VARCHAR(255)
 );
 
 CREATE TABLE password_reset_tokens (
@@ -63,6 +76,23 @@ CREATE TABLE password_reset_tokens (
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    action VARCHAR(64) NOT NULL,
+    entity_type VARCHAR(64) NOT NULL,
+    entity_id VARCHAR(64),
+    detail TEXT,
+    ip_address VARCHAR(45),
+    user_agent VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_audit_logs_actor ON audit_logs(actor_id);
+CREATE INDEX idx_audit_logs_action ON audit_logs(action);
+CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at DESC);
 
 -- 2. Academics & Schedule
 CREATE TABLE semesters (
@@ -133,6 +163,7 @@ CREATE TABLE room_reservations (
     cancellation_reason VARCHAR(255),
     cancellation_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT no_overlapping_room_bookings EXCLUDE USING gist (
         room_id WITH =,
         slot_range WITH &&
@@ -148,6 +179,9 @@ CREATE TABLE attendance_sessions (
     topic_discussed TEXT,
     editable_until TIMESTAMPTZ NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '48 hours'),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- TimestampMixin maps updated_at, so a table without it makes every
+    -- ORM SELECT fail with UndefinedColumn on Postgres.
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE attendance_records (
@@ -167,6 +201,9 @@ CREATE TABLE user_devices (
     platform VARCHAR(20) NOT NULL DEFAULT 'web',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- TimestampMixin maps updated_at, so a table without it makes every
+    -- ORM SELECT fail with UndefinedColumn on Postgres.
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE notification_preferences (
@@ -200,7 +237,8 @@ CREATE TABLE academic_resources (
     title VARCHAR(255) NOT NULL,
     description TEXT,
     category VARCHAR(50) NOT NULL,
-    course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    -- Nullable: a resource may be department-wide rather than course-specific.
+    course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
     uploader_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     file_key VARCHAR(512) NOT NULL,
     file_name VARCHAR(255) NOT NULL,
@@ -208,11 +246,18 @@ CREATE TABLE academic_resources (
     mime_type VARCHAR(100) NOT NULL,
     download_count INT NOT NULL DEFAULT 0,
     is_faculty_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    -- 'pending' until the object has been measured and verified server-side,
+    -- 'ready' once it may be listed and downloaded.
+    status VARCHAR(20) NOT NULL DEFAULT 'ready'
+        CONSTRAINT academic_resources_status_check CHECK (status IN ('pending', 'ready')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     tsv_search TSVECTOR GENERATED ALWAYS AS (
         to_tsvector('english', coalesce(title, '') || ' ' || coalesce(description, ''))
     ) STORED
 );
+
+CREATE INDEX ix_academic_resources_status ON academic_resources (status);
 
 CREATE TABLE book_exchanges (
     resource_id UUID PRIMARY KEY REFERENCES academic_resources(id) ON DELETE CASCADE,
@@ -240,6 +285,9 @@ CREATE TABLE equipment_assets (
     lab_name VARCHAR(100) NOT NULL,
     condition lab_condition NOT NULL DEFAULT 'operational',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- TimestampMixin maps updated_at, so a table without it makes every
+    -- ORM SELECT fail with UndefinedColumn on Postgres.
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE equipment_borrow_requests (
@@ -252,6 +300,9 @@ CREATE TABLE equipment_borrow_requests (
     expected_return TIMESTAMPTZ NOT NULL,
     status borrow_status NOT NULL DEFAULT 'pending_approval',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- TimestampMixin maps updated_at, so a table without it makes every
+    -- ORM SELECT fail with UndefinedColumn on Postgres.
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE damage_reports (
@@ -262,6 +313,9 @@ CREATE TABLE damage_reports (
     repair_cost_bdt NUMERIC(10, 2) DEFAULT 0.00,
     resolved BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- TimestampMixin maps updated_at, so a table without it makes every
+    -- ORM SELECT fail with UndefinedColumn on Postgres.
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE lab_bench_reservations (
@@ -283,6 +337,9 @@ CREATE TABLE projects (
     supervisor_id UUID REFERENCES users(id) ON DELETE SET NULL,
     github_repo_url TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- TimestampMixin maps updated_at, so a table without it makes every
+    -- ORM SELECT fail with UndefinedColumn on Postgres.
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE project_members (
@@ -299,6 +356,9 @@ CREATE TABLE supervisor_proposals (
     proposal_text TEXT NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- TimestampMixin maps updated_at, so a table without it makes every
+    -- ORM SELECT fail with UndefinedColumn on Postgres.
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE project_publications (
@@ -309,6 +369,9 @@ CREATE TABLE project_publications (
     doi_url VARCHAR(255),
     paper_file_key VARCHAR(512) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- TimestampMixin maps updated_at, so a table without it makes every
+    -- ORM SELECT fail with UndefinedColumn on Postgres.
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 8. Career
@@ -344,6 +407,9 @@ CREATE TABLE student_portfolios (
     is_public BOOLEAN NOT NULL DEFAULT TRUE,
     view_count INT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- TimestampMixin maps updated_at, so a table without it makes every
+    -- ORM SELECT fail with UndefinedColumn on Postgres.
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 9. AI Knowledge
@@ -353,15 +419,23 @@ CREATE TABLE knowledge_documents (
     title VARCHAR(255) NOT NULL,
     file_path TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- TimestampMixin maps updated_at, so a table without it makes every
+    -- ORM SELECT fail with UndefinedColumn on Postgres.
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE document_chunks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id UUID REFERENCES knowledge_documents(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
-    embedding vector(768) NOT NULL,
+    -- Nullable: the ORM model does not map this column, and an
+    -- installation without an embedding model stores chunks unembedded.
+    embedding vector(768),
     tsv_content TSVECTOR GENERATED ALWAYS AS (to_tsvector('english', content)) STORED,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- TimestampMixin maps updated_at, so a table without it makes every
+    -- ORM SELECT fail with UndefinedColumn on Postgres.
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE ai_chat_sessions (
@@ -369,6 +443,9 @@ CREATE TABLE ai_chat_sessions (
     student_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     session_title VARCHAR(150) NOT NULL DEFAULT 'Course Q&A',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- TimestampMixin maps updated_at, so a table without it makes every
+    -- ORM SELECT fail with UndefinedColumn on Postgres.
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE ai_chat_messages (
@@ -377,6 +454,9 @@ CREATE TABLE ai_chat_messages (
     sender VARCHAR(10) NOT NULL,
     content TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- TimestampMixin maps updated_at, so a table without it makes every
+    -- ORM SELECT fail with UndefinedColumn on Postgres.
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE ai_generated_study_plans (
@@ -384,6 +464,9 @@ CREATE TABLE ai_generated_study_plans (
     student_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     plan_payload JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- TimestampMixin maps updated_at, so a table without it makes every
+    -- ORM SELECT fail with UndefinedColumn on Postgres.
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE course_offering_teachers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

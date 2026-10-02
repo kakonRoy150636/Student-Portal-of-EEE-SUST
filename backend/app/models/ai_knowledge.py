@@ -3,6 +3,7 @@ from sqlalchemy import String, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, UUIDPrimaryKeyMixin, TimestampMixin
+from app.models.types import Vector
 
 class KnowledgeDocument(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "knowledge_documents"
@@ -16,6 +17,9 @@ class DocumentChunk(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("knowledge_documents.id"), nullable=False)
     content: Mapped[str] = mapped_column(String(2000), nullable=False)
+    # Nullable: a chunk is ingested and searchable by full text even when no
+    # embedding model is configured (or the API call failed).
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(768), nullable=True)
 
 class AIChatSession(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "ai_chat_sessions"

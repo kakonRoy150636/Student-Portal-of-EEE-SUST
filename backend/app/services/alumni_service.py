@@ -37,6 +37,7 @@ from datetime import date, datetime, timezone
 
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
+from app.services.audit_service import AuditService
 from app.core.exceptions import (
     ForbiddenException,
     NotFoundException,
@@ -234,6 +235,12 @@ class AlumniService:
         user = await self.users.get_by_id(profile.user_id)
         if user:
             user.is_active = True
+        await AuditService(self.db).record(
+            action="alumni.approve",
+            entity_type="alumni_profile",
+            entity_id=profile.id,
+            actor_id=admin.id,
+        )
         await self.db.commit()
         await self.db.refresh(profile)
         return AlumniProfileResponse.model_validate(profile)
