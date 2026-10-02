@@ -1,23 +1,41 @@
+import logging
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.v1.router import api_router
+from app.core.bootstrap import ensure_bootstrap_admin
 from app.core.config import settings
+from app.core.database import AsyncSessionLocal
 from app.core.logging import setup_logging
 from app.middlewares.correlation_id import CorrelationIdMiddleware
 from app.middlewares.error_handler import register_exception_handlers
-from app.api.v1.router import api_router
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    # Create the first super_admin from BOOTSTRAP_ADMIN_* if configured. This
+    # replaced a super_admin row whose bcrypt hash was committed in seed.sql.
+    # A failure here must not take the API down: an operator who has not set
+    # the variables should still get a running (read-only) portal rather than
+    # a crash loop. The error is logged loudly instead.
+    try:
+        async with AsyncSessionLocal() as session:
+            await ensure_bootstrap_admin(session)
+    except Exception:
+        logger.exception("Bootstrap admin step failed; continuing startup.")
     yield
+
 
 app = FastAPI(
     title="SUST EEE Smart Student Portal API",
     version="1.0.0",
     docs_url="/api/docs" if settings.ENVIRONMENT != "production" else None,
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 
@@ -32,6 +50,7 @@ async def security_headers(request, call_next):
         response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     return response
 
+
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -43,6 +62,7 @@ app.add_middleware(
 
 register_exception_handlers(app)
 app.include_router(api_router, prefix="/api/v1")
+
 
 @app.get("/health")
 async def health_check():

@@ -1,13 +1,15 @@
--- WARNING: All demo accounts share the password "Passw0rd!23".
--- This seed is for local development only. Do NOT use in production.
--- To change passwords, generate a new bcrypt hash with:
---   python -c "from app.core.security import get_password_hash; import asyncio; print(asyncio.run(get_password_hash('YourNewPassword')))"
-INSERT INTO users (id, identifier, email, password_hash, full_name, role) VALUES
-('00000000-0000-0000-0000-000000000001', 'admin', 'kakonroy150636@gmail.com', '$2b$12$lj74XmRlsYdI/ngPNQT2AuAY003uB37trg2TZ0TxAY/yVAy6Bf44y', 'System Administrator', 'super_admin'),
-('00000000-0000-0000-0000-000000000002', 'faculty01', 'tasfiq@sust.edu', '$2b$12$lj74XmRlsYdI/ngPNQT2AuAY003uB37trg2TZ0TxAY/yVAy6Bf44y', 'Md. Tasfiq Rahman', 'teacher'),
-('00000000-0000-0000-0000-000000000003', '2023338049', 'kakon@student.sust.edu', '$2b$12$lj74XmRlsYdI/ngPNQT2AuAY003uB37trg2TZ0TxAY/yVAy6Bf44y', 'Kakon Chandro Roy', 'student'),
-('00000000-0000-0000-0000-000000000004', '2023338050', 'tanij@student.sust.edu', '$2b$12$lj74XmRlsYdI/ngPNQT2AuAY003uB37trg2TZ0TxAY/yVAy6Bf44y', 'Tanij Roy', 'cr')
-ON CONFLICT DO NOTHING;
+-- Development seed data.
+--
+-- NOTE: there is deliberately NO user account in this file. The previous
+-- revision seeded a super_admin with a bcrypt hash committed to the
+-- repository, which meant every fresh deployment -- including any public
+-- demo -- shipped an administrator whose credential material was published.
+-- A committed hash is crackable offline at leisure and cannot be rotated
+-- without a new commit, so the account is now created at runtime from
+-- BOOTSTRAP_ADMIN_* environment variables (see backend/app/core/bootstrap.py).
+--
+-- The course/room/semester rows below are reference data: they are not
+-- secrets, and the application is unusable without a term and some rooms.
 
 INSERT INTO semesters (id, title, is_active, start_date, end_date) VALUES
 (1, 'Term 3-1, 2026', true, '2026-07-01', '2026-12-31')

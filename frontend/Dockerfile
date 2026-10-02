@@ -21,7 +21,18 @@ RUN npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-# নতুন nginx.conf কন্টেইনারে কপি করার লাইন
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
+
+# nginx:alpine ships an `nginx` user and an unprivileged image variant, but a
+# stock image still starts its master process as root to bind port 80. Rather
+# than re-architect the port, drop the master to the shipped unprivileged user
+# and give it only the paths it writes at runtime (cache, pid, logs). Static
+# assets stay root-owned and read-only to the server process.
+RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /usr/share/nginx/html \
+ && touch /var/run/nginx.pid \
+ && chown nginx:nginx /var/run/nginx.pid
+
+USER nginx
+
+EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]

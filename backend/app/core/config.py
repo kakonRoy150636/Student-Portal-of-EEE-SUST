@@ -29,6 +29,14 @@ class Settings(BaseSettings):
         "http://localhost:3000",
     ]
 
+    # First-boot super_admin. Leaving these unset is valid and simply skips
+    # bootstrap (local development). When set, they are consumed once -- the
+    # password is hashed and never read again, so it can be rotated in the
+    # environment without touching a committed file. See core/bootstrap.py.
+    BOOTSTRAP_ADMIN_EMAIL: str = ""
+    BOOTSTRAP_ADMIN_PASSWORD: str = ""
+    BOOTSTRAP_ADMIN_IDENTIFIER: str = "admin"
+
     GEMINI_API_KEY: str = ""
     FIREBASE_CREDENTIALS_PATH: str = "./firebase-service-account.json"
 

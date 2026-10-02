@@ -12,6 +12,7 @@ from app.schemas.auth import (
     AvatarUploadResponse, AvatarFinalizeRequest, AvatarFinalizeResponse,
 )
 from app.api.dependencies import get_current_user, get_avatar_actor, RequireRole, get_client_ip
+from app.core.rate_limit import enforce_registration_limit
 from app.models.user import User, UserRole
 from app.core.config import settings
 from app.core.exceptions import UnauthorizedException
@@ -97,12 +98,25 @@ async def logout(request: Request, response: Response, db: AsyncSession = Depend
 
 
 @router.post("/register/teacher", response_model=RegisterResponse, status_code=201)
-async def register_teacher(payload: TeacherRegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register_teacher(
+    payload: TeacherRegisterRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    # Registration has no failure signal, so it carries a hard per-IP ceiling
+    # rather than the adaptive delay /auth/login uses. See core/rate_limit.py.
+    await enforce_registration_limit(get_client_ip(request))
     return await AuthService(db).register_teacher(payload)
 
 
 @router.post("/register/student", response_model=RegisterResponse, status_code=201)
-async def register_student(payload: StudentRegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register_student(
+    payload: StudentRegisterRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    # See register_teacher above.
+    await enforce_registration_limit(get_client_ip(request))
     return await AuthService(db).register_student(payload)
 
 

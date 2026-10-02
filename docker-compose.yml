@@ -60,8 +60,13 @@ services:
       /bin/sh -c "
       mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
       mc mb --ignore-existing local/$${S3_BUCKET_NAME:-sust-eee-resources} &&
-      mc anonymous set download local/$${S3_BUCKET_NAME:-sust-eee-resources}
+      mc anonymous set none local/$${S3_BUCKET_NAME:-sust-eee-resources}
       "
+    # The bucket is intentionally private. It used to be set to anonymous
+    # download, which combined with file_key leaking from /resources/search
+    # meant anyone authenticated (or who guessed a key) could pull any upload.
+    # Objects are now reached only through short-lived presigned URLs minted
+    # after an authorised API call -- see services/resource_service.py.
     restart: "no"
 
   backend:
@@ -118,7 +123,7 @@ services:
     container_name: sust_eee_frontend
     restart: always
     ports:
-      - "5173:80"
+      - "5173:8080"
     depends_on:
       - backend
 

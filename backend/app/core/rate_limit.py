@@ -179,3 +179,55 @@ async def record_login_success(identifier: str) -> None:
         await _get_redis().delete(_account_key(identifier))
     except (RedisError, OSError):
         return
+
+
+# --- registration throttling ----------------------------------------------
+# Login throttling above is failure-driven: a wrong password earns a delay.
+# Registration has no failure signal at all -- every request "succeeds" -- so
+# it needs a hard ceiling instead. Without one, /auth/register/* is an open
+# door for account spam (M-2 in the review) and, because each request pays
+# ~150-300 ms of bcrypt, a cheap CPU-exhaustion vector.
+#
+# Ceiling rather than delay on purpose: a legitimate student registers once.
+# Anyone hitting this limit is either scripting or sharing an address with a
+# whole lab, and in the latter case a short wait is far less annoying than
+# letting an attacker mint accounts without bound.
+REGISTRATION_WINDOW_SECONDS = 3600  # 1 hour
+REGISTRATION_MAX_PER_IP = 20
+
+
+async def enforce_registration_limit(ip: str) -> None:
+    """Raise 429 if this address has registered too often in the window.
+
+    Fails *open* when Redis is unreachable, consistent with the login
+    throttle: a throttle-store outage must not become a signup outage.
+    """
+    from fastapi import HTTPException, status
+
+    key = f"register:ip:{ip}"
+    try:
+        client = _get_redis()
+        count = await client.incr(key)
+        if count == 1:
+            await client.expire(key, REGISTRATION_WINDOW_SECONDS)
+    except (RedisError, OSError, ValueError):
+        return
+
+    if count > REGISTRATION_MAX_PER_IP:
+        retry_after = await _ttl_or_window(client, key)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                "Too many accounts created from this address. "
+                "Please try again later."
+            ),
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+async def _ttl_or_window(client: aioredis.Redis, key: str) -> int:
+    try:
+        ttl = int(await client.ttl(key))
+        return ttl if ttl > 0 else REGISTRATION_WINDOW_SECONDS
+    except (RedisError, OSError, ValueError):
+        return REGISTRATION_WINDOW_SECONDS
