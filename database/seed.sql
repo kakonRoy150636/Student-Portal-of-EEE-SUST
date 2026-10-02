@@ -1,3 +1,7 @@
+-- WARNING: All demo accounts share the password "Passw0rd!23".
+-- This seed is for local development only. Do NOT use in production.
+-- To change passwords, generate a new bcrypt hash with:
+--   python -c "from app.core.security import get_password_hash; import asyncio; print(asyncio.run(get_password_hash('YourNewPassword')))"
 INSERT INTO users (id, identifier, email, password_hash, full_name, role) VALUES
 ('00000000-0000-0000-0000-000000000001', 'admin', 'kakonroy150636@gmail.com', '$2b$12$lj74XmRlsYdI/ngPNQT2AuAY003uB37trg2TZ0TxAY/yVAy6Bf44y', 'System Administrator', 'super_admin'),
 ('00000000-0000-0000-0000-000000000002', 'faculty01', 'tasfiq@sust.edu', '$2b$12$lj74XmRlsYdI/ngPNQT2AuAY003uB37trg2TZ0TxAY/yVAy6Bf44y', 'Md. Tasfiq Rahman', 'teacher'),

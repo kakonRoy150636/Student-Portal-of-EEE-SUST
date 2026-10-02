@@ -269,7 +269,7 @@ async def make_user(
     user = User(
         identifier=identifier or f"id-{suffix}",
         email=email or f"user-{suffix}@sust.edu",
-        password_hash=get_password_hash(password),
+        password_hash=await get_password_hash(password),
         full_name=f"Test {role.value}",
         role=role,
         is_active=is_active,

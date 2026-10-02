@@ -135,7 +135,7 @@ class AlumniService:
             identifier=identifier,
             email=dto.email,
             full_name=dto.full_name,
-            password_hash=get_password_hash(dto.password),
+            password_hash=await get_password_hash(dto.password),
             role=UserRole.ALUMNI,
             # Pending verification, same as teacher/CR/ER. Authenticated
             # access stays closed until an admin approves (see module docstring).

@@ -69,7 +69,7 @@ class AuthService:
 
     async def authenticate(self, dto: LoginRequest, client_ip: str = "unknown"):
         user = await self.repo.get_by_identifier(dto.identifier)
-        password_ok = bool(user) and verify_password(dto.password, user.password_hash)
+        password_ok = bool(user) and await verify_password(dto.password, user.password_hash)
 
         # The delay is applied *after* the password check, and only for wrong
         # credentials. Doing it beforehand (as the first attempt did) meant a
@@ -150,7 +150,7 @@ class AuthService:
             identifier=identifier,
             email=dto.email,
             full_name=dto.full_name,
-            password_hash=get_password_hash(dto.password),
+            password_hash=await get_password_hash(dto.password),
             role=UserRole.TEACHER,
             is_active=False,
         )
@@ -179,7 +179,7 @@ class AuthService:
             identifier=dto.identifier,
             email=dto.email,
             full_name=dto.full_name,
-            password_hash=get_password_hash(dto.password),
+            password_hash=await get_password_hash(dto.password),
             role=role,
             is_active=role == UserRole.STUDENT,  # CR and ER require admin approval
         )

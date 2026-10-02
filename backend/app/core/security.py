@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -14,21 +15,25 @@ def generate_random_token(nbytes: int = 32) -> str:
 
 MAX_PASSWORD_BYTES = 72  # bcrypt hard limit; longer input is silently truncated by C.
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
+async def verify_password(plain_password: str, hashed_password: str) -> bool:
     if not hashed_password or len(plain_password.encode("utf-8")) > MAX_PASSWORD_BYTES:
         # Returning False (rather than raising) keeps an over-long password a
         # normal auth failure instead of a 500.
         return False
     try:
-        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+        return await asyncio.to_thread(
+            bcrypt.checkpw, plain_password.encode("utf-8"), hashed_password.encode("utf-8")
+        )
     except (ValueError, TypeError):
         return False
 
-def get_password_hash(password: str) -> str:
+async def get_password_hash(password: str) -> str:
     password_bytes = password.encode("utf-8")
     if len(password_bytes) > MAX_PASSWORD_BYTES:
         raise ValueError("Password cannot exceed 72 UTF-8 bytes.")
-    return bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode("utf-8")
+    return await asyncio.to_thread(
+        lambda: bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode("utf-8")
+    )
 
 def create_access_token(data: Dict[str, Any], expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
