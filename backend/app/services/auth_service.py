@@ -16,7 +16,8 @@ from app.schemas.auth import (
 )
 from app.models.user import User, UserRole, StudentProfile, FacultyProfile
 from app.models.auth import RefreshToken
-from app.models.academic import CourseEnrollment
+from app.models.academic import CourseEnrollment, CourseOffering
+from app.core.exceptions import DomainException
 
 
 def _is_expired(expires_at: datetime) -> bool:
@@ -104,7 +105,7 @@ class AuthService:
         - Issue a new access token + a fresh refresh token in the same family.
         """
         token_hash = hash_secret_token(refresh_token)
-        stmt = select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+        stmt = select(RefreshToken).where(RefreshToken.token_hash == token_hash).with_for_update()
         stored = (await self.db.execute(stmt)).scalar_one_or_none()
 
         if not stored:
@@ -164,6 +165,15 @@ class AuthService:
         )
 
     async def register_student(self, dto: StudentRegisterRequest) -> RegisterResponse:
+        offering_ids = [item.course_offering_id for item in dto.course_selections]
+        if len(offering_ids) != len(set(offering_ids)):
+            raise DomainException("Duplicate course selections are not allowed.", status_code=422)
+        if offering_ids:
+            existing = set((await self.db.scalars(
+                select(CourseOffering.id).where(CourseOffering.id.in_(offering_ids))
+            )).all())
+            if existing != set(offering_ids):
+                raise DomainException("One or more course offerings do not exist.", status_code=422)
         if await self.repo.get_by_email(dto.email):
             raise ResourceConflictException("Email already in use.")
         if await self.repo.get_by_identifier(dto.identifier):

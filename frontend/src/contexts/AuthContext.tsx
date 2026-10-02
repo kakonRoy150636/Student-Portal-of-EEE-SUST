@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import type { AxiosError } from 'axios';
 import { User, UserRole, LoginCredentials } from '@/types/auth';
-import { api, setAccessToken } from '@/lib/axios';
+import { api, setAccessToken, requestNewAccessToken } from '@/lib/axios';
 
 interface AuthContextType {
   user: User | null;
@@ -19,6 +19,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Remove tokens left by versions that persisted bearer credentials.
+    try { localStorage.removeItem('access_token'); } catch { /* Storage may be disabled. */ }
     let cancelled = false;
     // Access tokens stay in memory only. On a reload, the HttpOnly refresh
     // cookie silently restores the session without exposing a bearer token to
@@ -26,12 +28,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const BOOTSTRAP_ATTEMPTS = 3;
     const bootstrap = async () => {
       for (let attempt = 0; attempt < BOOTSTRAP_ATTEMPTS; attempt += 1) {
+        if (cancelled) return;
         try {
-          const { data } = await api.post('/auth/refresh');
-          setAccessToken(data.tokens.access_token);
-          if (!cancelled) setUser(data.user);
+          await requestNewAccessToken();
+          if (cancelled) return;
+          const { data } = await api.get('/auth/me');
+          if (!cancelled) setUser(data);
           return;
         } catch (error) {
+          if (cancelled) return;
           const status = (error as AxiosError).response?.status;
           if (status === 401 || status === 403) {
             setAccessToken(null);

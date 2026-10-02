@@ -9,6 +9,22 @@ pytestmark = pytest.mark.asyncio
 REGISTRATION_PASSWORD = "Passw0rd!23"
 
 
+@pytest.mark.parametrize("duplicate", [False, True])
+async def test_invalid_course_selection_does_not_create_user(client, db, duplicate):
+    import uuid
+    from sqlalchemy import select
+    from app.models.user import User
+    selection = {"course_offering_id": str(uuid.uuid4())}
+    response = await client.post("/api/v1/auth/register/student", json={
+        "full_name": "Invalid Enrollment", "identifier": "invalid-enrollment",
+        "email": "invalid-enrollment@sust.edu", "password": REGISTRATION_PASSWORD,
+        "session_year": "22-26", "current_term": "3-1",
+        "course_selections": [selection] * (2 if duplicate else 1),
+    })
+    assert response.status_code == 422
+    assert await db.scalar(select(User.id).where(User.identifier == "invalid-enrollment")) is None
+
+
 async def test_student_registration_is_active_immediately(client, db):
     response = await client.post(
         "/api/v1/auth/register/student",

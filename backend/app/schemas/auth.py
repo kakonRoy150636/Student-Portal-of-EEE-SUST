@@ -38,7 +38,7 @@ class CourseSelection(BaseModel):
 
 
 class TeacherRegisterRequest(BaseModel):
-    full_name: str
+    full_name: str = Field(min_length=1, max_length=150)
     email: EmailStr
     password: str = Field(..., min_length=6)
     # avatar_key is deliberately absent: the only write path is
@@ -46,14 +46,14 @@ class TeacherRegisterRequest(BaseModel):
 
 
 class StudentRegisterRequest(BaseModel):
-    full_name: str
+    full_name: str = Field(min_length=1, max_length=150)
     identifier: str = Field(..., min_length=3, max_length=32)
     email: EmailStr
     password: str = Field(..., min_length=6)
-    session_year: str
-    current_term: str
+    session_year: str = Field(min_length=1, max_length=9)
+    current_term: str = Field(min_length=1, max_length=4)
     role: Literal["student", "cr", "er"] = "student"
-    course_selections: list[CourseSelection] = Field(default_factory=list)
+    course_selections: list[CourseSelection] = Field(default_factory=list, max_length=30)
 
 
 class PendingApprovalUser(BaseModel):

@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import re
 import uuid
+from urllib.parse import quote
+from starlette.concurrency import run_in_threadpool
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -27,11 +29,21 @@ from app.repositories.resource_repository import ResourceRepository
 
 PRESIGN_EXPIRY_SECONDS = 300
 MAX_SEARCH_LENGTH = 100
+MAX_RESOURCE_BYTES = 25 * 1024 * 1024
 
 # Extensions we are willing to hand a presigned PUT for. Pinning this (rather
 # than accepting whatever the client sends) keeps the stored object's type
 # predictable, the same reasoning as the avatar upload path.
-ALLOWED_UPLOAD_EXTENSIONS = {".pdf", ".ppt", ".pptx", ".doc", ".docx", ".zip", ".png", ".jpg", ".jpeg"}
+UPLOAD_TYPES = {
+    ".pdf": "application/pdf",
+    ".ppt": "application/vnd.ms-powerpoint",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".doc": "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".zip": "application/zip", ".png": "image/png",
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+}
+ALLOWED_UPLOAD_EXTENSIONS = set(UPLOAD_TYPES)
 
 
 def _escape_like(value: str) -> str:
@@ -71,14 +83,14 @@ class ResourceService:
         # ownership without a lookup -- same pattern as avatar uploads.
         file_key = f"resources/{user.id}/{uuid.uuid4().hex}{extension}"
 
-        client = _s3_client()
+        client = _s3_client(public=True)
         try:
             upload_url = client.generate_presigned_url(
                 "put_object",
                 Params={
                     "Bucket": settings.S3_BUCKET_NAME,
                     "Key": file_key,
-                    "ContentType": payload.mime_type,
+                    "ContentType": UPLOAD_TYPES[extension],
                 },
                 ExpiresIn=PRESIGN_EXPIRY_SECONDS,
             )
@@ -89,7 +101,7 @@ class ResourceService:
             "upload_url": upload_url,
             "file_key": file_key,
             "expires_in": PRESIGN_EXPIRY_SECONDS,
-            "content_type": payload.mime_type,
+            "content_type": UPLOAD_TYPES[extension],
         }
 
     async def finalize_upload(self, payload, user):
@@ -102,16 +114,24 @@ class ResourceService:
         if not payload.file_key.startswith(expected_prefix):
             raise PermissionError("That upload key does not belong to you.")
 
+        name = payload.file_key[len(expected_prefix):]
+        if not re.fullmatch(r"[0-9a-f]{32}\.(pdf|ppt|pptx|doc|docx|zip|png|jpg|jpeg)", name):
+            raise ValueError("Invalid upload key.")
+        expected_type = UPLOAD_TYPES["." + name.rsplit(".", 1)[1]]
+
         client = _s3_client()
         try:
-            head = client.head_object(Bucket=settings.S3_BUCKET_NAME, Key=payload.file_key)
+            head = await run_in_threadpool(client.head_object, Bucket=settings.S3_BUCKET_NAME, Key=payload.file_key)
         except (BotoCoreError, ClientError) as exc:
             raise FileNotFoundError("The uploaded object could not be found.") from exc
 
         stored_size = int(head.get("ContentLength", 0))
-        if stored_size <= 0:
-            _delete_quietly(client, payload.file_key)
-            raise ValueError("The uploaded file is empty.")
+        if stored_size <= 0 or stored_size > MAX_RESOURCE_BYTES:
+            await run_in_threadpool(_delete_quietly, client, payload.file_key)
+            raise ValueError("The uploaded file must be between 1 byte and 25 MB.")
+        if head.get("ContentType") != expected_type:
+            await run_in_threadpool(_delete_quietly, client, payload.file_key)
+            raise ValueError("The uploaded content type does not match its file extension.")
 
         course_id = await self.db.scalar(
             select(Course.id).where(Course.course_code == payload.course_code)
@@ -127,7 +147,7 @@ class ResourceService:
             file_key=payload.file_key,
             file_name=payload.file_name,
             file_size_bytes=stored_size,
-            mime_type=payload.mime_type,
+            mime_type=expected_type,
         )
         self.db.add(resource)
         await self.db.commit()
@@ -144,14 +164,15 @@ class ResourceService:
         if resource is None:
             raise FileNotFoundError("Resource not found.")
 
-        client = _s3_client()
+        client = _s3_client(public=True)
         try:
             download_url = client.generate_presigned_url(
                 "get_object",
                 Params={
                     "Bucket": settings.S3_BUCKET_NAME,
                     "Key": resource.file_key,
-                    "ResponseContentDisposition": f'attachment; filename="{resource.file_name}"',
+                    "ResponseContentDisposition": "attachment; filename*=UTF-8''" + quote(resource.file_name, safe=""),
+                    "ResponseContentType": "application/octet-stream",
                 },
                 ExpiresIn=PRESIGN_EXPIRY_SECONDS,
             )
@@ -168,10 +189,10 @@ class ResourceService:
         }
 
 
-def _s3_client():
+def _s3_client(*, public=False):
     return boto3.client(
         "s3",
-        endpoint_url=settings.S3_ENDPOINT_URL,
+        endpoint_url=settings.S3_PUBLIC_ENDPOINT_URL if public else settings.S3_ENDPOINT_URL,
         aws_access_key_id=settings.S3_ACCESS_KEY,
         aws_secret_access_key=settings.S3_SECRET_KEY,
     )

@@ -58,6 +58,7 @@ settings = Settings()
 # with a value every reader of the source can forge. Refusing to start is
 # far better than shipping a forgeable token to production.
 _WEAK_SECRET_KEYS = {
+    "dev_secret_key_change_in_production_sust_eee_256bit",
     "dev_secret_key_sust_eee_smart_student_portal_256bit",
     "changeme",
     "secret",
@@ -73,7 +74,7 @@ if settings.ENVIRONMENT.lower() == "production":
     insecure_origins = [
         origin
         for origin in settings.CORS_ORIGINS
-        if origin.startswith("http://") and not origin.startswith("http://localhost")
+        if not origin.startswith("https://") or origin == "https://"
     ]
     if insecure_origins:
         raise RuntimeError(

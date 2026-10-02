@@ -26,7 +26,7 @@ const REFRESH_PATH = '/auth/refresh';
 
 let refreshInFlight: Promise<string> | null = null;
 
-const requestNewAccessToken = (): Promise<string> => {
+export const requestNewAccessToken = (): Promise<string> => {
   // Collapse concurrent 401s into a single refresh call — without this, N
   // parallel requests would each rotate the token and all but one would be
   // rejected as replay, tripping the backend's theft detection.
