@@ -1,0 +1,68 @@
+# Standalone disposable integration stack. Never merge with production Compose.
+# No host ports, .env credentials, production volumes or container_name entries.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: portal_test
+      POSTGRES_PASSWORD: portal_test_only
+      POSTGRES_DB: portal_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portal_test -d portal_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  tests:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+      args:
+        TEST_BASE_IMAGE: ${TEST_BASE_IMAGE:-python:3.11-slim}
+    environment:
+      ENVIRONMENT: test
+      SECRET_KEY: integration-test-only-not-for-deployment
+      DATABASE_URL: postgresql+asyncpg://portal_test:portal_test_only@postgres:5432/portal_test
+      INTEGRATION_DATABASE_URL: postgresql://portal_test:portal_test_only@postgres:5432/portal_test
+      INTEGRATION_REDIS_URL: redis://redis:6379/15
+      REDIS_URL: redis://redis:6379/15
+      COVERAGE_FILE: /reports/.coverage
+    volumes:
+      - ./database:/database:ro
+      - ./coverage/backend:/reports
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command:
+      - python
+      - -m
+      - pytest
+      - tests/integration
+      - -ra
+      - --tb=short
+      - -p
+      - no:cacheprovider
+      - --cov=app.services.booking_service
+      - --cov=app.services.auth_service
+      - --cov=app.services.attendance_service
+      - --cov=app.repositories.attendance_repository
+      - --cov=app.api.dependencies
+      - --cov=app.core.request_limits
+      - --cov=app.tasks.notifications
+      - --cov-branch
+      - --cov-report=term-missing
+      - --cov-report=html:/reports/html
+      - --cov-report=xml:/reports/coverage.xml
+      - --cov-report=json:/reports/coverage.json
+      - --junitxml=/reports/junit.xml

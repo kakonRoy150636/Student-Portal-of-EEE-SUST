@@ -5,7 +5,7 @@ from app.models.attendance import AttendanceSession, AttendanceRecord
 from app.models.academic import CourseEnrollment
 from app.models.user import User
 from app.repositories.attendance_repository import AttendanceRepository
-from sqlalchemy import select
+from sqlalchemy import select, and_
 
 THRESHOLD_PERCENT = 75.0
 
@@ -40,7 +40,10 @@ class AttendanceService:
                 AttendanceRecord.status,
             )
             .join(AttendanceSession, AttendanceSession.course_offering_id == CourseEnrollment.course_offering_id)
-            .join(AttendanceRecord, AttendanceRecord.session_id == AttendanceSession.id)
+            .outerjoin(AttendanceRecord, and_(
+                AttendanceRecord.session_id == AttendanceSession.id,
+                AttendanceRecord.student_id == student_id,
+            ))
             .where(CourseEnrollment.student_id == student_id)
         )
         rows = (await self.db.execute(stmt)).all()
@@ -96,7 +99,7 @@ class AttendanceService:
                 "total_sessions": total_sessions,
                 "present_count": present,
                 "percentage": pct,
-                "below_threshold": pct < THRESHOLD_PERCENT,
+                "below_threshold": pct < THRESHOLD_PERCENT if total_sessions else False,
             })
         return summary
 

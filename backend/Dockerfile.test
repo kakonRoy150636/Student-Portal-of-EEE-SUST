@@ -1,6 +1,6 @@
-FROM python:3.11-slim
+ARG TEST_BASE_IMAGE=python:3.11-slim
+FROM ${TEST_BASE_IMAGE}
 WORKDIR /app
-RUN pip install --no-cache-dir --upgrade pip
 COPY requirements-dev.txt .
 RUN pip install --no-cache-dir -r requirements-dev.txt
 COPY . .

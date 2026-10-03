@@ -1,10 +1,10 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
-from sqlalchemy import String, Boolean, Integer, ForeignKey, DateTime
+from sqlalchemy import String, Boolean, Integer, ForeignKey, DateTime, Enum
 from sqlalchemy.dialects.postgresql import UUID, JSONB, TSTZRANGE, ExcludeConstraint
 from sqlalchemy.orm import Mapped, mapped_column
-from app.models.base import Base, UUIDPrimaryKeyMixin, TimestampMixin
+from app.models.base import Base, UUIDPrimaryKeyMixin
 
 
 class Room(Base):
@@ -18,7 +18,7 @@ class Room(Base):
     amenities: Mapped[dict] = mapped_column(JSONB, default=dict)
 
 
-class RoomReservation(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+class RoomReservation(Base, UUIDPrimaryKeyMixin):
     """A room/lab booking request.
 
     The live database stores the booked interval in a ``TSTZRANGE`` column
@@ -48,7 +48,8 @@ class RoomReservation(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # NOTE: bound/read via tstzrange()/lower()/upper() SQL helpers so the app
     # stays driver-agnostic (asyncpg has no first-class tstzrange codec).
     slot_range: Mapped[Any] = mapped_column(TSTZRANGE, nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="pending")
+    status: Mapped[str] = mapped_column(Enum("pending", "approved", "rejected", "cancelled", name="reservation_status"), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     approved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     rejection_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)

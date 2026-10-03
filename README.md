@@ -289,6 +289,54 @@ npm --prefix frontend run dev
 
 ### Backend tests
 
+#### Critical integration suite: real PostgreSQL + Redis
+
+```bash
+mkdir -p coverage/backend
+docker compose -p portal-critical-tests -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
+docker compose -p portal-critical-tests -f docker-compose.test.yml down -v
+```
+
+This standalone test stack uses `pgvector/pgvector:pg16` and Redis 7 with no
+published ports or production credentials/volumes. PostgreSQL data is temporary.
+The runner migrates a template database with Alembic, clones a separate database
+for each test, uses real committed transactions for races, and cleans it up.
+Redis is real; only this disposable test server's DB 15 is flushed between tests.
+Do not point `INTEGRATION_REDIS_URL` at a shared/production Redis database.
+
+Factories and fixtures are in `backend/tests/integration/`. Tests call FastAPI
+via HTTPX ASGITransport with an independent DB session per request. They are
+integration tests, not browser tests or live FCM delivery tests. Run serially;
+the dedicated Redis DB is not isolated per pytest-xdist worker.
+
+Coverage artifacts:
+- `coverage/backend/html/index.html` — browsable line/branch coverage
+- `coverage/backend/coverage.xml` and `coverage.json` — CI/machine-readable
+- `coverage/backend/junit.xml` — test results including expected failures
+
+The coverage configuration supports SQLAlchemy's greenlets and task threads;
+without that, async SQL execution undercounts exercised code. Coverage is
+focused on the critical modules, not an artificial 100% project target.
+
+See [Backend test report](docs/BACKEND_TEST_REPORT.md) for measured coverage,
+discovered fixes and explicit feature gaps. Known missing features are not
+reported as passing tests. Four strict expected-failure contracts become CI
+failures on unexpected pass; a separate prerequisite case records that no
+prerequisite/completion model exists to test yet.
+
+For a focused rerun (start disposable services first):
+
+```bash
+docker compose -p portal-critical-tests -f docker-compose.test.yml up -d postgres redis
+docker compose -p portal-critical-tests -f docker-compose.test.yml run --rm tests python -m pytest tests/integration/test_bookings.py -v --tb=short
+```
+
+Optional local build acceleration: set `TEST_BASE_IMAGE` to an existing Python
+backend image with dependencies installed; otherwise the test image builds
+independently from `python:3.11-slim`. Rebuild the tests image after source changes.
+
+#### Existing fast regression suite
+
 The backend image installs the development extras from `backend/pyproject.toml`.
 
 ```bash

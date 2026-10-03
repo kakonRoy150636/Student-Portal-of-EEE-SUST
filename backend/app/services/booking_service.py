@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import select, func, literal
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.booking_repository import BookingRepository
 from app.schemas.booking import BookingCreate
@@ -47,13 +47,13 @@ class BookingService:
         )
         try:
             return await self.repo.create(reservation)
-        except IntegrityError:
-            # The GiST exclusion constraint rejects the overlap under
-            # concurrency. Only IntegrityError means "slot taken" — a broad
-            # except here would report genuine DB faults as booking conflicts.
-            # The caller's session handles the rollback, so the failed flush
-            # must not be swallowed mid-transaction.
-            raise ResourceConflictException("This room is already reserved for the requested slot.")
+        except DBAPIError as exc:
+            # Concurrent GiST insertions may either exclude a row (23P01) or
+            # abort a deadlock victim (40P01). Both require the request to roll
+            # back. Unrelated FK/connection/schema faults are not slot conflicts.
+            if getattr(exc.orig, "sqlstate", None) not in {"23P01", "40P01"}:
+                raise
+            raise ResourceConflictException("This room is already reserved for the requested slot.") from exc
 
     async def get_reservation(self, reservation_id: uuid.UUID) -> RoomReservation:
         reservation = await self.repo.get_by_id(reservation_id)
