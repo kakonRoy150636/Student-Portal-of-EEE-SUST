@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     BOOTSTRAP_ADMIN_IDENTIFIER: str = "admin"
 
     GEMINI_API_KEY: str = ""
+    GITHUB_WEBHOOK_SECRET: str = ""
     FIREBASE_CREDENTIALS_PATH: str = "./firebase-service-account.json"
 
     S3_ENDPOINT_URL: str = "http://minio:9000"
@@ -66,6 +67,16 @@ _WEAK_SECRET_KEYS = {
 }
 
 if settings.ENVIRONMENT.lower() == "production":
+    from sqlalchemy.engine import make_url
+
+    required = {"SECRET_KEY", "DATABASE_URL", "S3_ACCESS_KEY", "S3_SECRET_KEY"}
+    if required - settings.model_fields_set:
+        raise RuntimeError("Production requires explicit SECRET_KEY, DATABASE_URL and S3 credentials.")
+    database_password = make_url(settings.DATABASE_URL).password
+    if not database_password or database_password.lower() in {"postgres", "password", "changeme"}:
+        raise RuntimeError("Production DATABASE_URL requires a non-default password.")
+    if not settings.S3_ACCESS_KEY or not settings.S3_SECRET_KEY or settings.S3_SECRET_KEY.lower() in {"minioadmin", "password", "changeme"}:
+        raise RuntimeError("Production requires non-default S3 credentials.")
     if settings.SECRET_KEY in _WEAK_SECRET_KEYS or len(settings.SECRET_KEY) < 32:
         raise RuntimeError(
             "SECRET_KEY must be set to a unique value of at least 32 characters "

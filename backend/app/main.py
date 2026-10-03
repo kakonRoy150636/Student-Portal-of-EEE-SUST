@@ -35,6 +35,8 @@ app = FastAPI(
     title="SUST EEE Smart Student Portal API",
     version="1.0.0",
     docs_url="/api/docs" if settings.ENVIRONMENT != "production" else None,
+    redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
+    openapi_url="/openapi.json" if settings.ENVIRONMENT != "production" else None,
     lifespan=lifespan,
 )
 
