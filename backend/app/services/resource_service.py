@@ -23,6 +23,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.uploads import publish_upload
 from app.models.academic import Course
 from app.models.resource import AcademicResource
 from app.repositories.resource_repository import ResourceRepository
@@ -78,6 +79,8 @@ class ResourceService:
                 f"File type '{extension or 'unknown'}' is not allowed. "
                 f"Permitted: {', '.join(sorted(ALLOWED_UPLOAD_EXTENSIONS))}"
             )
+        if payload.mime_type != UPLOAD_TYPES[extension]:
+            raise ValueError("Content type does not match the file extension.")
 
         # Namespace under the uploader's id so the finalize step can verify
         # ownership without a lookup -- same pattern as avatar uploads.
@@ -118,6 +121,7 @@ class ResourceService:
         if not re.fullmatch(r"[0-9a-f]{32}\.(pdf|ppt|pptx|doc|docx|zip|png|jpg|jpeg)", name):
             raise ValueError("Invalid upload key.")
         expected_type = UPLOAD_TYPES["." + name.rsplit(".", 1)[1]]
+        extension = "." + name.rsplit(".", 1)[1]
 
         client = _s3_client()
         try:
@@ -138,13 +142,26 @@ class ResourceService:
         )
         if course_id is None:
             raise ValueError(f"Unknown course code '{payload.course_code}'.")
+        if not payload.file_name.lower().endswith(extension) or payload.mime_type != expected_type:
+            raise ValueError("File name/type does not match the upload key.")
+
+        try:
+            published_key, stored_size = await run_in_threadpool(
+                publish_upload, client, payload.file_key, extension, expected_type,
+                MAX_RESOURCE_BYTES, expected_prefix,
+            )
+        except ValueError:
+            await run_in_threadpool(_delete_quietly, client, payload.file_key)
+            raise
+        except (BotoCoreError, ClientError) as exc:
+            raise RuntimeError("Resource storage is unavailable.") from exc
 
         resource = AcademicResource(
             title=payload.title,
             category=payload.category,
             course_id=course_id,
             uploader_id=user.id,
-            file_key=payload.file_key,
+            file_key=published_key,
             file_name=payload.file_name,
             file_size_bytes=stored_size,
             mime_type=expected_type,
@@ -152,6 +169,7 @@ class ResourceService:
         self.db.add(resource)
         await self.db.commit()
         await self.db.refresh(resource)
+        await run_in_threadpool(_delete_quietly, client, payload.file_key)
         return resource
 
     async def issue_download_url(self, resource_id, user) -> dict:

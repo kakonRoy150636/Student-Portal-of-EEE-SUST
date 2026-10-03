@@ -14,7 +14,7 @@ async def test_presigned_urls_use_public_endpoint_and_pinned_type(monkeypatch):
     client = MagicMock()
     factory = MagicMock(return_value=client)
     monkeypatch.setattr(module.boto3, "client", factory)
-    payload = SimpleNamespace(file_name="notes.pdf", mime_type="text/html")
+    payload = SimpleNamespace(file_name="notes.pdf", mime_type="application/pdf")
     result = await ResourceService(MagicMock()).create_presigned_upload(payload, SimpleNamespace(id=uuid.uuid4()))
     assert factory.call_args.kwargs["endpoint_url"] == settings.S3_PUBLIC_ENDPOINT_URL
     assert client.generate_presigned_url.call_args.kwargs["Params"]["ContentType"] == "application/pdf"

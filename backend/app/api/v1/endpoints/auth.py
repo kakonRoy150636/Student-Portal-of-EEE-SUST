@@ -1,5 +1,8 @@
 import uuid
 import os
+import re
+from starlette.concurrency import run_in_threadpool
+from app.core.uploads import publish_upload
 
 import jwt
 from fastapi import APIRouter, Depends, Response, HTTPException, Request
@@ -185,61 +188,31 @@ async def finalize_avatar(
     The browser cannot be trusted to have uploaded what it claimed, and the
     PUT carries no enforceable size limit, so the object is measured
     server-side. An oversized or non-image object is deleted rather than left
-    sitting in a publicly readable bucket.
+    sitting unvalidated in the private staging area.
     """
     # Ownership check: without it this endpoint would let any authenticated
     # user probe or delete another user's objects by guessing a key.
     if not payload.file_key.startswith("avatars/%s-" % user.id):
         raise HTTPException(status_code=403, detail="That file does not belong to you.")
-
+    name = payload.file_key[len(f"avatars/{user.id}-"):]
+    if not re.fullmatch(r"[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\.(jpg|jpeg|png|webp|gif)", name):
+        raise HTTPException(422, "Invalid avatar upload key.")
+    extension = os.path.splitext(name)[1]
+    client = _s3_client()
     try:
-        client = _s3_client()
-        head = client.head_object(Bucket=settings.S3_BUCKET_NAME, Key=payload.file_key)
-    except ClientError as exc:
-        code = exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
-        if code == 404:
-            raise HTTPException(status_code=404, detail="Upload not found. Please try again.") from exc
-        raise HTTPException(status_code=503, detail="Avatar storage is unavailable.") from exc
-
-    stored_size = int(head.get("ContentLength", 0))
-    stored_type = (head.get("ContentType") or "").lower()
-
-    if stored_size < 1 or stored_size > MAX_AVATAR_BYTES:
-        _delete_quietly(client, payload.file_key)
-        raise HTTPException(
-            status_code=413,
-            detail="That image is larger than the 10 MB limit and was not saved.",
+        published_key, stored_size = await run_in_threadpool(
+            publish_upload, client, payload.file_key, extension,
+            AVATAR_EXTENSION_CONTENT_TYPES[extension], MAX_AVATAR_BYTES,
+            f"avatars/{user.id}-",
         )
-
-    if stored_type not in AVATAR_EXTENSION_CONTENT_TYPES.values() or not _has_image_magic(
-        stored_type, payload.file_key, client
-    ):
-        _delete_quietly(client, payload.file_key)
-        raise HTTPException(status_code=415, detail="That file is not a valid image.")
-
-    # Stamp Content-Disposition on the stored object. MinIO serves this on
-    # anonymous GET, which is the only header we can actually control without
-    # putting nginx in front of the bucket. X-Content-Type-Options: nosniff
-    # cannot be set this way -- that still needs a proxy, tracked separately.
-    try:
-        client.copy_object(
-            Bucket=settings.S3_BUCKET_NAME,
-            Key=payload.file_key,
-            CopySource={"Bucket": settings.S3_BUCKET_NAME, "Key": payload.file_key},
-            ContentType=stored_type,
-            ContentDisposition="inline",
-            MetadataDirective="REPLACE",
-        )
-    except (BotoCoreError, ClientError):
-        # The object is already a measured image; a metadata stamp failure
-        # must not undo a successful upload.
-        pass
-
-    # Persist only after the object has been measured. Register used to
-    # accept a client-supplied avatar_key, which let anyone point their
-    # account at another user's object (or at a key that was never uploaded).
-    await AuthService(db).attach_avatar(user, payload.file_key)
-    return AvatarFinalizeResponse(file_key=payload.file_key, size=stored_size)
+    except ValueError as exc:
+        await run_in_threadpool(_delete_quietly, client, payload.file_key)
+        raise HTTPException(415, str(exc)) from exc
+    except (BotoCoreError, ClientError) as exc:
+        raise HTTPException(503, "Avatar storage is unavailable.") from exc
+    await AuthService(db).attach_avatar(user, published_key)
+    await run_in_threadpool(_delete_quietly, client, payload.file_key)
+    return AvatarFinalizeResponse(file_key=published_key, size=stored_size)
 
 
 def _s3_client():
@@ -256,42 +229,6 @@ def _delete_quietly(client, file_key: str) -> None:
         client.delete_object(Bucket=settings.S3_BUCKET_NAME, Key=file_key)
     except (BotoCoreError, ClientError):
         return
-
-
-# Leading-byte signatures, checked against the first 12 bytes of the object.
-#
-# Best-effort sanity check: it rejects empty, corrupt, or non-image blobs that
-# the client mislabelled. It is NOT a polyglot/XSS defence. A crafted file can
-# pass this while still carrying an executable payload *after* the magic bytes
-# -- a GIF89a+JS polyglot, for example, has a perfectly valid 6-byte header
-# and then carries script after it, so this check passes. The real mitigations
-# are the server-pinned Content-Type (so the stored object's type is never
-# attacker-chosen) plus nosniff/Content-Disposition on serve. Full byte-level
-# verification would mean decoding the image (e.g. Pillow), which is
-# disproportionate for an MVP avatar field.
-#
-# Served directly from MinIO, so nosniff cannot be set per-object without an
-# nginx S3-proxy route in front of it -- tracked separately, not done here.
-_IMAGE_MAGIC = {
-    "image/jpeg": (b"\xff\xd8\xff",),
-    "image/png": (b"\x89PNG\r\n\x1a\n",),
-    "image/gif": (b"GIF87a", b"GIF89a"),
-    "image/webp": (b"RIFF",),
-}
-
-
-def _has_image_magic(content_type: str, file_key: str, client) -> bool:
-    prefixes = _IMAGE_MAGIC.get(content_type)
-    if not prefixes:
-        # Allowed type we have no signature for: do not reject on bytes alone.
-        return True
-    try:
-        chunk = client.get_object(
-            Bucket=settings.S3_BUCKET_NAME, Key=file_key, Range="bytes=0-11"
-        )["Body"].read()
-    except (BotoCoreError, ClientError):
-        return False
-    return any(chunk.startswith(p) for p in prefixes)
 
 
 @router.get("/admin/pending-approvals", response_model=list[PendingApprovalUser])
