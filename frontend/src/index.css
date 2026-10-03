@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../tailwind.config.js";
 
 /* ── Modern academic utility tokens ────────────────────────────────────────
    One dark navy system and one light paper system. Gold is the SUST accent,

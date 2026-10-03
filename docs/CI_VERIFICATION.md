@@ -26,15 +26,15 @@ run after a failure; earlier failed steps continue to fail the job.
 | actionlint 1.7.7 | Passed |
 | Ruff | Passed |
 | mypy | Passed, 92 source files |
-| Full pytest with real PostgreSQL/Redis | 171 passed, 1 skipped, 5 xfailed |
+| Full pytest with real PostgreSQL/Redis | 199 passed, 1 skipped, 4 xfailed |
 | npm ci | Passed |
 | ESLint / TypeScript / Vite build | Passed |
 | pip-audit after upgrading pip/setuptools | No known vulnerabilities |
-| npm audit (including dev dependencies) | Gate fails: 6 HIGH, 1 MODERATE; Vite/Tailwind dependency trees |
+| npm audit (including dev dependencies) | Passed; 0 vulnerabilities after Vite 8/Tailwind 4 upgrade |
 | Backend Docker build | Passed |
 | Frontend Docker build | Passed |
-| Frontend Trivy 0.70.0 | Gate fails: 2 HIGH package findings (libexpat, pcre2) |
-| Backend Trivy 0.70.0 | Gate fails: 100 HIGH, 1 CRITICAL package findings |
+| Frontend Trivy 0.70.0 | Passed; 0 HIGH/CRITICAL findings after Alpine upgrade |
+| Backend Trivy 0.70.0 | Passed; 0 HIGH/CRITICAL findings with Alpine runtime and no build tools |
 
 The one skipped test requires MinIO, outside the requested PostgreSQL/Redis CI
 services. The five expected/blocked cases are documented in BACKEND_TEST_REPORT.md.
@@ -48,15 +48,14 @@ pass without blanket suppressions. Python dependency auditing also exposed old
 pip/setuptools in the local base image; the workflow upgrades those before
 installing/auditing the environment.
 
-## Remaining blockers to a green CI
+## Security remediation
 
-The security gates intentionally remain blocking. Frontend build dependencies
-need supported Vite/Tailwind upgrades. Container remediation is separate from
-host Python dependency auditing: the Dockerfiles/base images contain their own
-OS and Python distributions. Backend findings include Debian util-linux,
-systemd libraries, ncurses, Perl, kernel development headers, wheel and
-jaraco.context. Counts are package/advisory occurrences, not unique CVEs.
+The former local blockers were remediated without weakening the gates. The
+frontend now uses supported Vite 8/Tailwind 4 packages, Node 22 for its build
+stage, and an Alpine runtime refreshed with `apk upgrade`. The backend uses a
+two-stage Python Alpine build, installs only production dependencies in the
+runtime, removes packaging tools after installation, and refreshes Alpine
+packages. The local Trivy artifacts now contain no HIGH/CRITICAL findings.
 
-Refresh/remediate base images and installed dependencies, then rerun the scans.
-No clean-image claim is made. GitHub artifacts retain exact package versions,
-advisory IDs and available fixes for the images built by each CI run.
+GitHub-hosted execution remains the final verification after pushing this
+commit; no hosted result is claimed by this local report.
