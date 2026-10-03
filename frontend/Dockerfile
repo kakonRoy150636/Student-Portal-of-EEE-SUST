@@ -6,7 +6,7 @@ RUN npm ci --include=optional
 COPY . .
 RUN npm run build
 
-FROM nginx:1.29-alpine3.23
+FROM nginx:1.31-alpine3.23
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
