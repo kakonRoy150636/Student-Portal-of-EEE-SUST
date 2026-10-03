@@ -100,7 +100,67 @@ New receiver: `POST /api/v1/webhooks/github`, HMAC-authenticated (no user role).
 
 ## Verification / residual limits
 
-To be updated after separate fix commits. Shared-library access remains intentional;
-course-private resources would require an explicit entitlement policy. Production
-infrastructure must be deployed using the standalone production Compose file,
-not merged with development's published ports.
+### Fixes applied (separate commits)
+
+| Finding | Commit | Result |
+|---|---|---|
+| S1 | `ae33a4b` | Production Compose requires JWT, DB URL and S3 credentials; runtime rejects default DB/S3 passwords. All API documentation disabled in production. DB/Redis/MinIO remain unexposed. |
+| S2 | `a1fec6d` | Atomic Redis Lua counter + expiry. Login 30/IP/min, refresh 60/IP/min, AI 10/user/min, resource search 60/user/min; all registration routes share 20/IP/hour. 429 includes Retry-After; production Redis failure returns 503 rather than bypassing controls. |
+| S3 | `804242e` | PostgreSQL transaction advisory lock serializes the whole family before row locking. Rotation, replay and logout share it; replay leaves no active descendants and does not revoke another device's family. |
+| S4 | `a896e20` | Signed `POST /api/v1/webhooks/github`, maximum 1 MiB, exact raw-body HMAC-SHA256, constant-time comparison and strict digest syntax. Missing configuration returns 503; invalid signature 401. |
+| S5 | `89a8639` | MIME/extension agreement, bounded byte reads and signature/container sanity checks. Validated bytes are published under a new server-only key, preventing staging PUT replay from replacing them. Resource limit 25 MiB; avatar limit 10 MiB; presigned URLs remain 300 seconds. |
+| S6 | `3b4ba20` | `/labs/equipment` now explicitly permits only A,T,E. Tests cover all six roles, every non-admin role against administrative routes, and a forged JWT role claim. |
+
+**After-fix matrix change:** the lab equipment row is now A,T,E with an explicit
+role check. The webhook row is HMAC-only. Other roles/scopes remain as documented
+above; AUTH flags continue to identify routes with no narrower role allowlist.
+
+### Verification performed
+
+- Full backend suite: **134 passed, 7 skipped**. The seven older PostgreSQL fixture
+  tests were not enabled; the new migration and refresh concurrency tests ran
+  against a real disposable PostgreSQL 16 cluster.
+- Real Redis concurrent requests: exactly 5 of 20 accepted for a 5-request budget;
+  all others returned 429, and the budget reset after expiry.
+- Real MinIO: presigned PUT reused to overwrite staging bytes; published bytes
+  remained unchanged, and the invalid replacement could not be published.
+- Production Compose rejected missing **and empty** POSTGRES_PASSWORD,
+  MINIO_ROOT_PASSWORD, SECRET_KEY, DATABASE_URL, S3_ACCESS_KEY and S3_SECRET_KEY.
+- Rendered production configuration publishes no Postgres, Redis or MinIO ports.
+- Static route inventory verified that this report documents all **61 domain
+  routes**, plus framework routes.
+
+Reproduce the integration-enabled suite on the isolated stack described in README:
+
+```bash
+docker compose -p sust-eee-migration-check -f docker-compose.yml -f docker-compose.migration-test.yml exec -T backend \
+  env MIGRATION_TEST_DATABASE_URL=postgresql://migration_test:migration_test@postgres:5432/migration_test \
+  SECURITY_TEST_REDIS_URL=redis://redis:6379/14 \
+  SECURITY_TEST_S3_ENDPOINT=http://minio:9000 \
+  python -m pytest -q -p no:cacheprovider
+```
+
+### Remaining operational/product limits
+
+- Use the production Compose file standalone, not merged with development's
+  published ports. TLS and a browser-reachable private-storage gateway remain
+  deployment configuration. Provision a least-privilege S3 service credential;
+  do not give the API MinIO root credentials.
+- Old deployed admin passwords cannot be inspected/rotated from source alone.
+  Rotate any credentials used by historical seeds; `.backups/` and Git history
+  need owner review before publishing any real database exports.
+- File signatures/container checks are not malware scanning or full image
+  decoding. Legacy Office formats share an OLE signature. A presigned PUT can
+  still consume staging storage before finalization; apply object-store quotas
+  and a lifecycle rule for abandoned staging objects. Oversized/invalid objects
+  are rejected before publication. DB failures can leave orphan published objects.
+- Shared-library access remains intentional; course-private resources require
+  an explicit entitlement policy. Authentication-only catalogue routes are
+  flagged above rather than assigned arbitrary new role restrictions.
+- Webhook ping verifies delivery. Other signed event types return `ignored`:
+  project synchronization was absent and is not invented by this security fix.
+- Existing access JWTs expire normally after a family is revoked; family
+  revocation prevents further refresh, not already-issued short-lived access.
+- Redis fail-closed behavior is production-only; local development retains
+  availability when Redis is absent. Exact trusted proxy configuration is
+  required for distinct client IP budgets behind a reverse proxy.

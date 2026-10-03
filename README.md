@@ -350,6 +350,9 @@ Use this short path when presenting the project:
 
 ## Engineering Quality
 
+See [Security audit and endpoint role matrix](docs/SECURITY_AUDIT.md) for findings,
+fix commits, Redis budgets, webhook configuration and verification results.
+
 - Domain-oriented backend structure with thin API endpoints.
 - Async database access with SQLAlchemy 2 and PostgreSQL constraints for conflict prevention.
 - Versioned Alembic upgrades gated before API/worker startup, with real PostgreSQL migration lifecycle tests.
