@@ -1,6 +1,7 @@
 import uuid
+import hashlib
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.user_repository import UserRepository
 from app.core.security import (
@@ -68,6 +69,20 @@ class AuthService:
         )
         await self.db.execute(stmt)
 
+    async def _locked_refresh_token(self, token_hash: str):
+        family = await self.db.scalar(select(RefreshToken.token_family).where(RefreshToken.token_hash == token_hash))
+        if family is None:
+            return None
+        if self.db.get_bind().dialect.name == "postgresql":
+            # All generations share one lock, acquired BEFORE any row lock.
+            # Hash collisions only serialize unrelated families, never grant access.
+            key = int.from_bytes(hashlib.sha256(family.bytes).digest()[:8], "big", signed=True)
+            await self.db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
+        return await self.db.scalar(
+            select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+            .with_for_update().execution_options(populate_existing=True)
+        )
+
     async def authenticate(self, dto: LoginRequest, client_ip: str = "unknown"):
         user = await self.repo.get_by_identifier(dto.identifier)
         password_ok = bool(user) and await verify_password(dto.password, user.password_hash)
@@ -105,8 +120,7 @@ class AuthService:
         - Issue a new access token + a fresh refresh token in the same family.
         """
         token_hash = hash_secret_token(refresh_token)
-        stmt = select(RefreshToken).where(RefreshToken.token_hash == token_hash).with_for_update()
-        stored = (await self.db.execute(stmt)).scalar_one_or_none()
+        stored = await self._locked_refresh_token(token_hash)
 
         if not stored:
             raise UnauthorizedException("Refresh token is invalid.")
@@ -136,9 +150,8 @@ class AuthService:
         if not refresh_token:
             return
         token_hash = hash_secret_token(refresh_token)
-        stmt = select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-        stored = (await self.db.execute(stmt)).scalar_one_or_none()
-        if stored and not stored.is_revoked:
+        stored = await self._locked_refresh_token(token_hash)
+        if stored:
             await self._revoke_family(stored.token_family)
             await self.db.commit()
 
