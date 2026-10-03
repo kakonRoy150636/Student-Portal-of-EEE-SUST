@@ -21,11 +21,12 @@ from app.schemas.resource import (
     ResourceResponse,
 )
 from app.services.resource_service import ResourceService
+from app.api.request_limits import limit_search
 
 router = APIRouter(prefix="/resources", tags=["Resources"])
 
 
-@router.get("/search", response_model=list[ResourceResponse])
+@router.get("/search", response_model=list[ResourceResponse], dependencies=[Depends(limit_search)])
 async def search(
     q: str | None = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),

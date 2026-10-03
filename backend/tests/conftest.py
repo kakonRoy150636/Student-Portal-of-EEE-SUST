@@ -152,6 +152,19 @@ def _make_client(factory):
 
 
 @pytest.fixture(autouse=True)
+def isolated_request_budgets(monkeypatch):
+    """No shared Redis budget between independent API regression tests.
+
+    The rate-limit integration test explicitly replaces this with real Redis.
+    """
+    from app.core import request_limits
+    from unittest.mock import AsyncMock
+    fake = AsyncMock()
+    fake.eval.return_value = [1, 60]
+    monkeypatch.setattr(request_limits, "_get_redis", lambda: fake)
+
+
+@pytest.fixture(autouse=True)
 def reset_throttle_redis_client():
     """Drop the module-global Redis client between tests.
 

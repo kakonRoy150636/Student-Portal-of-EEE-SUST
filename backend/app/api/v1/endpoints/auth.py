@@ -12,7 +12,7 @@ from app.schemas.auth import (
     AvatarUploadResponse, AvatarFinalizeRequest, AvatarFinalizeResponse,
 )
 from app.api.dependencies import get_current_user, get_avatar_actor, RequireRole, get_client_ip
-from app.core.rate_limit import enforce_registration_limit
+from app.api.request_limits import limit_login, limit_refresh, limit_registration
 from app.models.user import User, UserRole
 from app.core.config import settings
 from app.core.exceptions import UnauthorizedException
@@ -54,7 +54,7 @@ def _set_refresh_cookie(response: Response, value: str) -> None:
     )
 
 
-@router.post("/login", response_model=AuthSessionResponse)
+@router.post("/login", response_model=AuthSessionResponse, dependencies=[Depends(limit_login)])
 async def login(
     payload: LoginRequest,
     response: Response,
@@ -67,7 +67,7 @@ async def login(
     return session_data
 
 
-@router.post("/refresh", response_model=AuthSessionResponse)
+@router.post("/refresh", response_model=AuthSessionResponse, dependencies=[Depends(limit_refresh)])
 async def refresh(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
     refresh_token = request.cookies.get(REFRESH_COOKIE)
     if not refresh_token:
@@ -97,26 +97,22 @@ async def logout(request: Request, response: Response, db: AsyncSession = Depend
     return {"message": "Logged out"}
 
 
-@router.post("/register/teacher", response_model=RegisterResponse, status_code=201)
+@router.post("/register/teacher", response_model=RegisterResponse, status_code=201, dependencies=[Depends(limit_registration)])
 async def register_teacher(
     payload: TeacherRegisterRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    # Registration has no failure signal, so it carries a hard per-IP ceiling
-    # rather than the adaptive delay /auth/login uses. See core/rate_limit.py.
-    await enforce_registration_limit(get_client_ip(request))
+    # Atomic registration budget is enforced by the route dependency.
     return await AuthService(db).register_teacher(payload)
 
 
-@router.post("/register/student", response_model=RegisterResponse, status_code=201)
+@router.post("/register/student", response_model=RegisterResponse, status_code=201, dependencies=[Depends(limit_registration)])
 async def register_student(
     payload: StudentRegisterRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    # See register_teacher above.
-    await enforce_registration_limit(get_client_ip(request))
     return await AuthService(db).register_student(payload)
 
 

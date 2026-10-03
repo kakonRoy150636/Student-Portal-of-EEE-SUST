@@ -36,6 +36,7 @@ from app.schemas.alumni import (
 )
 from app.schemas.auth import RegisterResponse
 from app.services.alumni_service import AlumniService
+from app.api.request_limits import limit_registration
 
 router = APIRouter(prefix="/alumni", tags=["Alumni"])
 
@@ -43,7 +44,7 @@ admin_only = RequireRole([UserRole.SUPER_ADMIN])
 alumni_or_admin = RequireRole([UserRole.ALUMNI, UserRole.SUPER_ADMIN])
 
 
-@router.post("/register", response_model=RegisterResponse, status_code=201)
+@router.post("/register", response_model=RegisterResponse, status_code=201, dependencies=[Depends(limit_registration)])
 async def register_alumni(
     payload: AlumniRegisterRequest,
     db: AsyncSession = Depends(get_db),
