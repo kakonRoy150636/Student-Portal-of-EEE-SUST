@@ -154,7 +154,9 @@ services:
     environment: *production-environment
     env_file:
       - .env
-    command: celery -A app.core.celery_app.celery_app beat --loglevel=warning
+    command: celery -A app.core.celery_app.celery_app beat --loglevel=warning --scheduler app.core.beat:SingletonScheduler --max-interval=5
+    deploy:
+      replicas: 1
     depends_on:
       migrate:
         condition: service_completed_successfully

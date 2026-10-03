@@ -1,5 +1,4 @@
 """Auth endpoint tests: login, refresh rotation, reuse detection, role gating."""
-import uuid
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -93,12 +92,12 @@ async def test_inactive_student_cannot_log_in(client, db):
 
 
 async def test_refresh_rotates_and_revokes_old_token(client, db):
-    user = await make_user(db, identifier="2023338053", password=STUDENT_PASSWORD)
+    await make_user(db, identifier="2023338053", password=STUDENT_PASSWORD)
 
     login = await client.post(
         "/api/v1/auth/login", json={"identifier": "2023338053", "password": STUDENT_PASSWORD}
     )
-    first_access = login.json()["tokens"]["access_token"]
+    assert login.json()["tokens"]["access_token"]
     first_refresh = login.cookies["refresh_token"]
 
     refreshed = await client.post("/api/v1/auth/refresh")
@@ -114,7 +113,6 @@ async def test_refresh_rotates_and_revokes_old_token(client, db):
     assert new_refresh != first_refresh
 
     # The rotated-out token must be marked revoked in the store.
-    from sqlalchemy import select
 
     stored = (
         await db.execute(
@@ -136,7 +134,7 @@ async def test_reusing_a_rotated_refresh_token_revokes_the_whole_family(client, 
     # Legitimate rotation.
     first_refresh = await client.post("/api/v1/auth/refresh")
     assert first_refresh.status_code == 200
-    live_cookie = first_refresh.cookies["refresh_token"]
+    assert first_refresh.cookies["refresh_token"]
 
     # Attacker replays the stolen token from a separate client that holds only
     # the stolen cookie -- it must not share the legitimate client's jar.
@@ -150,7 +148,6 @@ async def test_reusing_a_rotated_refresh_token_revokes_the_whole_family(client, 
     assert replay.status_code == 401
 
     # The now-legitimate session must be dead too: the family was revoked.
-    from sqlalchemy import select
 
     rows = (
         await db.execute(

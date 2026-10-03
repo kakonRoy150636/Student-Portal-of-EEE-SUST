@@ -11,7 +11,7 @@ instead of 500-ing the whole page. The counts are cheap (``count(*)`` with an
 optional indexed filter) and a dashboard is the most-hit authenticated view,
 so the queries are deliberately narrow rather than multi-join aggregates.
 """
-from datetime import date, timedelta
+from datetime import date
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError

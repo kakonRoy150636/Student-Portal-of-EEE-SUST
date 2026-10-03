@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
 
-from sqlalchemy import Select, and_, func, literal_column, or_, select
+from sqlalchemy import Select, ColumnElement, and_, func, literal_column, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -19,7 +18,6 @@ from app.models.alumni import (
     Scholarship,
     ScholarshipApplication,
 )
-from app.models.user import User
 from app.repositories.base import BaseRepository
 
 # Postgres text-search configuration for the alumni directory. This single
@@ -94,7 +92,7 @@ class AlumniRepository(BaseRepository[AlumniProfile]):
         limit: int = 50,
     ) -> list[AlumniProfile]:
         stmt: Select = select(AlumniProfile).options(selectinload(AlumniProfile.user))
-        filters = []
+        filters: list[ColumnElement[bool]] = []
         if visible_only:
             filters.append(AlumniProfile.is_visible.is_(True))
         if membership_status:
@@ -126,7 +124,7 @@ class AlumniRepository(BaseRepository[AlumniProfile]):
     ) -> list[AlumniProfile]:
         """ILIKE fallback used by the SQLite test suite (no tsvector)."""
         stmt: Select = select(AlumniProfile).options(selectinload(AlumniProfile.user))
-        filters = []
+        filters: list[ColumnElement[bool]] = []
         if visible_only:
             filters.append(AlumniProfile.is_visible.is_(True))
         if membership_status:

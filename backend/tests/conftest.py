@@ -6,15 +6,13 @@ depends on (the GiST exclusion constraint and TSTZRANGE) are unavailable here;
 tests for those are limited to service-level behaviour. The exclusion
 constraint itself is asserted structurally in test_schema_parity.py.
 """
-import asyncio
 import os
 import uuid
-from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import JSON, MetaData, Text, UniqueConstraint, Uuid, event, text
+from sqlalchemy import JSON, MetaData, Text, UniqueConstraint, Uuid, text
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.postgresql import ExcludeConstraint
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -84,7 +82,7 @@ def _skip_deferrable_unique(element, compiler, **kw):
     unaffected -- only the timing of the check is lost in tests.
     """
     if not getattr(element, "deferrable", None):
-        return None
+        return compiler.visit_unique_constraint(element, **kw)
     dialect = compiler.dialect
     preparer = dialect.identifier_preparer
     return "CONSTRAINT %s UNIQUE (%s)" % (
@@ -232,19 +230,19 @@ async def pg_session_factory():
     if not await _postgres_reachable():
         pytest.skip(f"PostgreSQL not reachable at {PG_TEST_URL}")
 
-    pg_engine = create_async_engine(PG_TEST_URL, future=True)
     schema = f"test_{uuid.uuid4().hex[:12]}"
-
-    # Pooled connections each need the schema on their search_path, otherwise
-    # they resolve tables against `public` and fail with "relation does not
-    # exist". A connect event applies it to every new connection.
-    @event.listens_for(pg_engine.sync_engine, "connect")
-    def _set_search_path(dbapi_conn, _record):
-        with dbapi_conn.cursor() as cur:
-            cur.execute(f'SET search_path TO "{schema}"')
+    # Connection startup settings survive rollback after a denied request;
+    # issuing SET inside the connection's first transaction did not.
+    pg_engine = create_async_engine(
+        PG_TEST_URL, future=True,
+        connect_args={"server_settings": {"search_path": f'"{schema}", public'}},
+    )
 
     async with pg_engine.begin() as conn:
         await conn.execute(text(f'CREATE SCHEMA "{schema}"'))
+        # GiST UUID/integer operator classes live in public; the CI database
+        # starts empty and must not depend on a developer's installed extensions.
+        await conn.execute(text('CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA public'))
         await conn.run_sync(Base.metadata.create_all)
     try:
         yield async_sessionmaker(bind=pg_engine, class_=AsyncSession, expire_on_commit=False)

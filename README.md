@@ -1,5 +1,7 @@
 # SUST EEE Smart Student Portal
 
+[![CI](https://github.com/kakonRoy150636/Student-Portal-of-EEE-SUST/actions/workflows/ci.yml/badge.svg)](https://github.com/kakonRoy150636/Student-Portal-of-EEE-SUST/actions/workflows/ci.yml)
+
 The SUST EEE Smart Student Portal is a full-stack academic platform for the Department of Electrical and Electronic Engineering at Shahjalal University of Science and Technology, Sylhet, Bangladesh.
 
 It brings course planning, attendance, room and lab booking, resources, projects, career services, AI-assisted academic search, notifications, and alumni engagement into one role-aware portal.
@@ -213,7 +215,8 @@ PostgreSQL advisory lock so concurrent deployments cannot race the version table
 
 Back up the database first. If `alembic current` already reports a revision,
 use `upgrade head` without stamping. For an **unversioned database matching the
-current schema.sql**, adopt it once, then apply incremental revisions:
+frozen pre-notification baseline** (`backend/alembic/sql/20260911_0001_baseline.sql`),
+adopt it once, then apply incremental revisions:
 
 ```bash
 docker compose up -d postgres
@@ -223,7 +226,10 @@ docker compose up --build -d
 ```
 
 `stamp` records a version; it does not create or validate objects. Compare a
-schema-only dump against `database/schema.sql` before using it. Older/partial
+schema-only dump against the corresponding snapshot before using it. A database
+created from the **current** `database/schema.sql` already includes the durable
+notification tables: only after verifying exact parity, stamp `20261003_0007`
+instead. Older/partial
 schemas need reconciliation against their original schema and the historical
 revisions first; do not blindly stamp them or stamp `head` to hide missing
 objects. The baseline refuses an unversioned non-empty database rather than
@@ -288,6 +294,14 @@ npm --prefix frontend run dev
 ```
 
 ### Backend tests
+
+### Durable notifications
+
+The minute scanner, five-minute digest, FCM delivery retries and user preferences
+are documented in [Notifications](docs/NOTIFICATIONS.md). Apply `alembic upgrade
+head` before starting the updated API/workers. Notification preferences are
+available on the Notifications page, with quiet hours interpreted in Asia/Dhaka.
+
 
 #### Critical integration suite: real PostgreSQL + Redis
 
@@ -398,6 +412,64 @@ Use this short path when presenting the project:
 
 ## Engineering Quality
 
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request, and can also
+be started manually from Actions. Independent jobs run:
+
+- Backend Ruff, mypy and `pip-audit` (installed dependencies, including tools).
+- Full pytest suite with PostgreSQL 16/pgvector and Redis 7 service containers;
+  legacy booking, migration, refresh concurrency and critical integration tests
+  are enabled. The optional MinIO test is skipped in this two-service job.
+- Frontend `npm ci`, ESLint, TypeScript, production build and `npm audit`.
+- Backend/frontend Docker builds and Trivy OS/library vulnerability scans.
+
+Pip/npm download caches and per-image BuildKit caches speed up repeat runs.
+CI does not push images or deploy. It uses read-only repository permissions and
+test-only service credentials; pull requests do not need repository secrets.
+JUnit/coverage and audit/scan JSON reports are uploaded even when a check fails.
+
+Trivy fails on **HIGH or CRITICAL**, including unfixed findings. npm audit fails
+on HIGH/CRITICAL across runtime **and development** packages. pip-audit fails on
+any known vulnerability. No audit check uses `continue-on-error` or an ignore
+list. Known pytest xfails are documented in the backend test report.
+
+Local equivalents:
+
+```bash
+python -m pip install --upgrade pip setuptools
+python -m pip install './backend[dev,ci]'
+cd backend
+python -m ruff check app tests alembic
+python -m mypy app
+python -m pip_audit --local
+```
+
+From the repository root, frontend checks are:
+
+```bash
+npm --prefix frontend ci
+npm --prefix frontend run lint
+npm --prefix frontend run typecheck
+npm --prefix frontend run build
+npm --prefix frontend audit --audit-level=high
+```
+
+Dependabot checks pip (`backend/`), npm (`frontend/`), Dockerfiles (both folders)
+and GitHub Actions weekly. Dependency upgrades are proposed as PRs, not auto-merged.
+
+**Local verification:** Ruff, mypy (92 application files), frontend lint,
+typecheck/build and pip-audit passed. The CI-style full test run reported
+**171 passed, 1 skipped, 5 xfailed**. Existing Vite/Tailwind build dependencies
+currently produce **6 HIGH and 1 MODERATE npm findings**; the new npm gate
+correctly fails until those dependencies are remediated. This is not a claim
+that the GitHub-hosted workflow has already run or is green.
+
+Both Docker builds also passed locally. Trivy correctly blocked their current
+images: frontend **2 HIGH** package findings; backend **100 HIGH and 1 CRITICAL**
+package findings. These counts are package/advisory occurrences, not distinct
+CVEs. See [CI verification](docs/CI_VERIFICATION.md) for details.
+
 See [Security audit and endpoint role matrix](docs/SECURITY_AUDIT.md) for findings,
 fix commits, Redis budgets, webhook configuration and verification results.
 
@@ -414,7 +486,6 @@ fix commits, Redis budgets, webhook configuration and verification results.
 - Add production observability and department analytics
 - Improve mobile navigation and PWA support
 - Support additional university departments after EEE validation
-- Add automated CI checks for backend tests and frontend builds
 - Publish a short product demo and screenshots for each role
 
 ## Contributing

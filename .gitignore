@@ -19,3 +19,7 @@ coverage/
 .coverage
 .coverage.*
 htmlcov/
+backend/pip-audit.json
+backend/coverage.xml
+backend/junit.xml
+frontend/npm-audit.json

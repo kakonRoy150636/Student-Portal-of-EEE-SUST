@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
 from app.models.attendance import AttendanceSession, AttendanceRecord
@@ -48,7 +49,7 @@ class AttendanceService:
         )
         rows = (await self.db.execute(stmt)).all()
 
-        per_course = {}
+        per_course: dict[UUID, dict[str, int]] = {}
         for offering_id, session_id, status in rows:
             per_course.setdefault(offering_id, {"present": 0, "total": 0})
             per_course[offering_id]["total"] += 1

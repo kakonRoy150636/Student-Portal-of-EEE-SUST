@@ -10,9 +10,19 @@ celery_app = Celery(
 )
 
 celery_app.conf.timezone = "Asia/Dhaka"
+celery_app.conf.enable_utc = True
+celery_app.conf.broker_connection_retry_on_startup = True
 celery_app.conf.beat_schedule = {
     "scan-10-minute-class-alerts": {
         "task": "app.tasks.notifications.scan_upcoming_class_alerts",
         "schedule": crontab(minute="*"),
-    }
+    },
+    "medium-notification-digest": {
+        "task": "app.tasks.notifications.digest_notifications",
+        "schedule": crontab(minute="*/5"),
+    },
+    "recover-pending-notifications": {
+        "task": "app.tasks.notifications.recover_pending_notifications",
+        "schedule": crontab(minute="*"),
+    },
 }

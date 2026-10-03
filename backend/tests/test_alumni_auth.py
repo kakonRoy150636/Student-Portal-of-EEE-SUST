@@ -11,7 +11,6 @@ from datetime import date
 import pytest
 from sqlalchemy import select
 
-from app.core.security import get_password_hash
 from app.models.alumni import AlumniProfile
 from app.models.user import User, UserRole
 from tests.conftest import auth_header, make_user

@@ -4,6 +4,7 @@ import { api } from '@/lib/axios';
 import { NotificationList } from '@/layouts/components/Header';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PageSkeleton } from '@/components/shared/PageSkeleton';
+import { NotificationPreferences } from '../components/NotificationPreferences';
 
 export default function NotificationsPage() {
   const { data, isLoading, isError } = useQuery({
@@ -28,6 +29,7 @@ export default function NotificationsPage() {
         )}
         {!isLoading && !isError && <NotificationList rows={data ?? []} />}
       </section>
+      <NotificationPreferences />
     </div>
   );
 }

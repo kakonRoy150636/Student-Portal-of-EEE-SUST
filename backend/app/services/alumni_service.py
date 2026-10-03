@@ -70,7 +70,6 @@ from app.schemas.alumni import (
     AlumniProfileResponse,
     AlumniProfileUpdate,
     AlumniRegisterRequest,
-    AlumniUserSummary,
     AlumniVerificationDecision,
     EventCreate,
     EventResponse,
@@ -307,19 +306,17 @@ class AlumniService:
         industry: str | None = None,
         limit: int = 50,
     ) -> list[AlumniProfileResponse]:
-        kwargs = {
-            "q": q,
-            "batch_year": batch_year,
-            "industry": industry,
-            "visible_only": True,
-            "membership_status": MembershipStatus.ACTIVE.value,
-            "limit": min(limit, 100),
-        }
         try:
-            rows = await self.repo.search_directory(**kwargs)
+            rows = await self.repo.search_directory(
+                q=q, batch_year=batch_year, industry=industry, visible_only=True,
+                membership_status=MembershipStatus.ACTIVE.value, limit=min(limit, 100),
+            )
         except (ProgrammingError, OperationalError):
             await self.db.rollback()
-            rows = await self.repo.search_directory_fallback(**kwargs)
+            rows = await self.repo.search_directory_fallback(
+                q=q, batch_year=batch_year, industry=industry, visible_only=True,
+                membership_status=MembershipStatus.ACTIVE.value, limit=min(limit, 100),
+            )
         return [AlumniProfileResponse.model_validate(row) for row in rows]
 
     async def get_directory_profile(self, profile_id: uuid.UUID) -> AlumniProfileResponse:

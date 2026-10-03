@@ -5,7 +5,7 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 
 MembershipStatus = Literal["pending", "active", "expired", "rejected"]

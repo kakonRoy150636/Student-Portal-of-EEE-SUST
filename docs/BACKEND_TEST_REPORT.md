@@ -1,5 +1,10 @@
 # Critical backend integration tests
 
+**Notification follow-up:** the former NOT-1 scanner stub is now implemented
+and its xfail has been replaced with passing behavioral tests. See
+[Notifications](NOTIFICATIONS.md). Counts/coverage below describe the original
+test-suite baseline, not the later expanded notification suite.
+
 Verified 2026-10-03 against real PostgreSQL 16 (pgvector image) and Redis 7.
 
 ## Result

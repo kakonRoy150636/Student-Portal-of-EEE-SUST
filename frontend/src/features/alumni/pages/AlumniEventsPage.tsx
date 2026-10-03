@@ -1,4 +1,5 @@
 import React from 'react';
+import { getErrorMessage } from '@/lib/errors';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarDays, MapPin, Users } from 'lucide-react';
 
@@ -116,9 +117,7 @@ export default function AlumniEventsPage() {
               </div>
               {rsvp.isError && rsvp.variables === event.id && (
                 <p role="alert" className="mt-3 text-xs text-[var(--danger)]">
-                  {(rsvp.error as any)?.response?.data?.error ||
-                    (rsvp.error as any)?.response?.data?.detail ||
-                    'Your RSVP could not be saved.'}
+                  {getErrorMessage(rsvp.error, 'Your RSVP could not be saved.')}
                 </p>
               )}
             </article>

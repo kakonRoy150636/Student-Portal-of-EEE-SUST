@@ -41,7 +41,15 @@ from app.models.lab import (  # noqa: F401
     EquipmentBorrowRequest,
     EquipmentModel,
 )
-from app.models.notification import Notification, NotificationPreference, UserDevice  # noqa: F401
+from app.models.notification import (  # noqa: F401
+    DeviceToken,
+    Notification,
+    NotificationBatch,
+    NotificationDelivery,
+    NotificationLog,
+    NotificationPreference,
+    UserDevice,
+)
 from app.models.project import (  # noqa: F401
     Project,
     ProjectMember,
@@ -65,4 +73,11 @@ __all__ = [
     "NewsPost",
     "GalleryAlbum",
     "GalleryPhoto",
+    "DeviceToken",
+    "Notification",
+    "NotificationBatch",
+    "NotificationDelivery",
+    "NotificationLog",
+    "NotificationPreference",
+    "UserDevice",
 ]

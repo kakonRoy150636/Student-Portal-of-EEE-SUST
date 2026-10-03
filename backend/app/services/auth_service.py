@@ -1,7 +1,7 @@
 import uuid
 import hashlib
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select, text
+from sqlalchemy import select, text, insert, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.user_repository import UserRepository
 from app.core.security import (
@@ -50,7 +50,7 @@ class AuthService:
         """
         token = generate_random_token()
         await self.db.execute(
-            RefreshToken.__table__.insert().values(
+            insert(RefreshToken).values(
                 user_id=user_id,
                 token_family=family or uuid.uuid4(),
                 token_hash=hash_secret_token(token),
@@ -63,7 +63,7 @@ class AuthService:
     async def _revoke_family(self, family: uuid.UUID) -> None:
         """Revoke every token in a family (reuse detection / logout)."""
         stmt = (
-            RefreshToken.__table__.update()
+            update(RefreshToken)
             .where(RefreshToken.token_family == family)
             .values(is_revoked=True)
         )
@@ -85,7 +85,7 @@ class AuthService:
 
     async def authenticate(self, dto: LoginRequest, client_ip: str = "unknown"):
         user = await self.repo.get_by_identifier(dto.identifier)
-        password_ok = bool(user) and await verify_password(dto.password, user.password_hash)
+        password_ok = user is not None and await verify_password(dto.password, user.password_hash)
 
         # The delay is applied *after* the password check, and only for wrong
         # credentials. Doing it beforehand (as the first attempt did) meant a
@@ -98,7 +98,7 @@ class AuthService:
         # enumerate which identifiers exist. This also covers what used to be
         # a distinct "awaiting admin approval" string, which confirmed that
         # a given email belonged to a real, unapproved teacher/CR/ER account.
-        if not password_ok:
+        if not user or not password_ok:
             raise UnauthorizedException("Invalid institutional identifier or password.")
         if not user.is_active:
             raise UnauthorizedException("Invalid institutional identifier or password.")

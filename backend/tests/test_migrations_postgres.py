@@ -19,7 +19,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.skipif(not ADMIN_URL, reason="Req
 BACKEND = Path(__file__).resolve().parents[1]
 SCHEMA = BACKEND.parent / "database" / "schema.sql"
 BASELINE = "20260911_0001"
-HEAD = "20260918_0006"
+HEAD = "20261003_0007"
 
 
 async def alembic(url, *args, succeeds=True):
@@ -82,13 +82,13 @@ async def test_baseline_upgrade_adoption_and_downgrade():
     databases = []
     connections = []
     try:
-        for _ in range(2):
+        for _ in range(3):
             name = "portal_migration_" + uuid.uuid4().hex
             await admin.execute(f'CREATE DATABASE "{name}"')
             databases.append(name)
             conn = await asyncpg.connect(admin_url.set(database=name).render_as_string(hide_password=False))
             connections.append(conn)
-        migrated, reference = connections
+        migrated, reference, latest_reference = connections
         url = admin_url.set(drivername="postgresql+asyncpg", database=databases[0]).render_as_string(hide_password=False)
         legacy_url = admin_url.set(drivername="postgresql+asyncpg", database=databases[1]).render_as_string(hide_password=False)
 
@@ -96,7 +96,8 @@ async def test_baseline_upgrade_adoption_and_downgrade():
         assert 'CREATE EXTENSION IF NOT EXISTS "vector"' in offline_sql
         assert "EXCLUDE USING gist" in offline_sql
         assert "USING GIN (search_tsv)" in offline_sql
-        await reference.execute(SCHEMA.read_text())
+        frozen = BACKEND / "alembic/sql/20260911_0001_baseline.sql"
+        await reference.execute(frozen.read_text())
         # Even two first deployments must not race CREATE alembic_version.
         await asyncio.gather(alembic(url, "upgrade", BASELINE), alembic(url, "upgrade", BASELINE))
         baseline_catalog = await catalog(reference)
@@ -136,16 +137,16 @@ async def test_baseline_upgrade_adoption_and_downgrade():
                 VALUES ('Electrical machines','notes',$1,$2,'test','test.pdf',1,'application/pdf')""", course, user)
             assert await migrated.fetchval("SELECT count(*) FROM academic_resources WHERE tsv_search @@ plainto_tsquery('english','machines')") == 1
 
+        # Upgrade backfills only active legacy device tokens and preserves IDs.
+        active_device = await migrated.fetchval("INSERT INTO user_devices(user_id,fcm_token) VALUES ($1,'migration-active') RETURNING id", user)
+        await migrated.execute("INSERT INTO user_devices(user_id,fcm_token,is_active) VALUES ($1,'migration-inactive',false)", user)
         await alembic(url, "upgrade", "head")
+        assert await migrated.fetchval("SELECT id FROM device_tokens WHERE token='migration-active'") == active_device
+        assert await migrated.fetchval("SELECT count(*) FROM device_tokens WHERE token='migration-inactive'") == 0
         assert await migrated.fetchval("SELECT version_num FROM alembic_version") == HEAD
         head_catalog = await catalog(migrated)
-        for kind in baseline_catalog:
-            if kind != "indexes":
-                assert head_catalog[kind] == baseline_catalog[kind]
-        assert set(head_catalog["indexes"]) - set(baseline_catalog["indexes"]) == {
-            ("notifications", "ix_notifications_recipient_read",
-             "CREATE INDEX ix_notifications_recipient_read ON public.notifications USING btree (recipient_id, is_read)")
-        }
+        await latest_reference.execute(SCHEMA.read_text())
+        assert head_catalog == await catalog(latest_reference)
         # Every future deployment may run this again, including concurrently.
         await asyncio.gather(alembic(url, "upgrade", "head"), alembic(url, "upgrade", "head"))
         assert await catalog(migrated) == head_catalog

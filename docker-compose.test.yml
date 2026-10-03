@@ -49,6 +49,7 @@ services:
       - -m
       - pytest
       - tests/integration
+      - tests/test_notification_transport.py
       - -ra
       - --tb=short
       - -p
@@ -60,6 +61,11 @@ services:
       - --cov=app.api.dependencies
       - --cov=app.core.request_limits
       - --cov=app.tasks.notifications
+      - --cov=app.services.notification_service
+      - --cov=app.services.notification_scanner
+      - --cov=app.services.notification_dispatch
+      - --cov=app.integrations.firebase_client
+      - --cov=app.core.beat
       - --cov-branch
       - --cov-report=term-missing
       - --cov-report=html:/reports/html

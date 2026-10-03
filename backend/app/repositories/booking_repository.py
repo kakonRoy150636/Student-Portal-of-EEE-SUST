@@ -1,7 +1,6 @@
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 from app.models.facility import Room, RoomReservation
 from app.repositories.base import BaseRepository
 

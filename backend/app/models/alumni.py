@@ -11,6 +11,10 @@ from __future__ import annotations
 
 import enum
 import uuid
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.user import User
 from datetime import date, datetime
 from typing import Any
 

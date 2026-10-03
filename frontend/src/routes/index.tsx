@@ -20,7 +20,6 @@ const CareerPortalPage = lazy(() => import('@/features/career/pages/CareerPortal
 const AIAssistantPage = lazy(() => import('@/features/ai-assistant/pages/AIAssistantPage'));
 const AdminPanelPage = lazy(() => import('@/features/admin/pages/AdminPanelPage'));
 const NotificationsPage = lazy(() => import('@/features/notifications/pages/NotificationsPage'));
-const AlumniLandingPage = lazy(() => import('@/features/alumni/pages/AlumniLandingPage'));
 const AlumniDirectoryPage = lazy(() => import('@/features/alumni/pages/AlumniDirectoryPage'));
 const AlumniEventsPage = lazy(() => import('@/features/alumni/pages/AlumniEventsPage'));
 

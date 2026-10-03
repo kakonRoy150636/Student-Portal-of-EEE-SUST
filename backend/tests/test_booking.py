@@ -1,5 +1,4 @@
 """Room booking service and route tests."""
-import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest

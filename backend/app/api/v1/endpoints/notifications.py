@@ -1,12 +1,25 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
-from app.schemas.notification import DeviceRegisterRequest, NotificationResponse
+from app.schemas.notification import (
+    DeviceRegisterRequest, NotificationResponse, NotificationPreferencesRequest,
+    NotificationPreferencesResponse,
+)
 from app.api.dependencies import get_current_user
 from app.models.user import User
 from app.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
+
+
+@router.get("/preferences", response_model=NotificationPreferencesResponse)
+async def get_preferences(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    return await NotificationService(db).get_preferences(user.id)
+
+
+@router.put("/preferences", response_model=NotificationPreferencesResponse)
+async def update_preferences(payload: NotificationPreferencesRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    return await NotificationService(db).set_preferences(user.id, payload)
 
 
 @router.post("/devices/register")

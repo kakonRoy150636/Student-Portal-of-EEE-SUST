@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '@/lib/axios';
+import { isAxiosError } from 'axios';
+import { getErrorMessage } from '@/lib/errors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from '@/components/shared/Avatar';
@@ -74,8 +76,8 @@ export default function RegisterPage() {
         params: { filename: avatar.name },
         headers,
       }));
-    } catch (requestError: any) {
-      if ([401, 403].includes(requestError?.response?.status)) {
+    } catch (requestError: unknown) {
+      if (isAxiosError(requestError) && [401, 403].includes(requestError.response?.status ?? 0)) {
         throw new Error('We could not attach your photo. You can add one after signing in.');
       }
       setAvatarError('We could not reach image storage, so your account was created without a photo. You can add one later.');
@@ -95,11 +97,10 @@ export default function RegisterPage() {
 
     try {
       await api.post('/auth/avatar-upload/finalize', { file_key: data.file_key }, { headers });
-    } catch (requestError: any) {
-      throw new Error(
-        requestError?.response?.data?.detail ||
+    } catch (requestError: unknown) {
+      throw new Error(getErrorMessage(requestError,
         'That photo could not be verified and was not saved. Your account was created; please try another image later.',
-      );
+      ));
     }
   };
 
@@ -120,14 +121,14 @@ export default function RegisterPage() {
       if (avatar && data.upload_token) {
         try {
           await uploadAvatar(data.upload_token);
-        } catch (photoError: any) {
-          setAvatarError(photoError?.message || 'Account created, but the photo could not be saved.');
+        } catch (photoError: unknown) {
+          setAvatarError(getErrorMessage(photoError, 'Account created, but the photo could not be saved.'));
         }
       }
 
       if (!data.requires_approval) window.setTimeout(() => navigate('/auth/login'), 1200);
-    } catch (requestError: any) {
-      setError(requestError?.response?.data?.detail || requestError?.message || 'Registration failed. Please check your details and try again.');
+    } catch (requestError: unknown) {
+      setError(getErrorMessage(requestError, 'Registration failed. Please check your details and try again.'));
     } finally {
       setSubmitting(false);
     }

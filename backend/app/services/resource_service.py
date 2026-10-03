@@ -19,7 +19,7 @@ from starlette.concurrency import run_in_threadpool
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings

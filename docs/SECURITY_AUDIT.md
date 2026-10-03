@@ -57,6 +57,8 @@ role check by design. Checks inside services count as authorization checks.
 | PUT | /attendance/sessions/{session_id} | Assigned T or A | Session -> course -> assignment |
 | POST | /notifications/devices/register | ALL | AUTH; caller's device |
 | GET | /notifications | ALL | AUTH; caller's notifications |
+| GET | /notifications/preferences | ALL | AUTH; caller's channel preferences and quiet hours |
+| PUT | /notifications/preferences | ALL | AUTH; replaces caller's preferences only |
 | GET | /resources/search | ALL | AUTH; department-shared resources |
 | POST | /resources/presigned-upload | ALL | AUTH; uploader prefix |
 | POST | /resources/finalize | ALL | AUTH; uploader prefix |

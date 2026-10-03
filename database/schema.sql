@@ -72,6 +72,7 @@ CREATE TABLE semesters (
     start_date DATE NOT NULL,
     end_date DATE NOT NULL
 );
+CREATE INDEX ix_semesters_active ON semesters (id) WHERE is_active = TRUE;
 
 CREATE TABLE courses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -99,6 +100,9 @@ CREATE TABLE course_enrollments (
     enrolled_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(course_offering_id, student_id)
 );
+CREATE INDEX ix_course_enrollments_notification_recipients
+    ON course_enrollments (course_offering_id, student_id)
+    WHERE status IN ('enrolled', 'main', 'improvement');
 
 CREATE TABLE rooms (
     id SERIAL PRIMARY KEY,
@@ -118,6 +122,7 @@ CREATE TABLE class_schedules (
     start_time TIME NOT NULL,
     end_time TIME NOT NULL
 );
+CREATE INDEX ix_class_schedules_day_start ON class_schedules (day_of_week, start_time);
 
 CREATE TABLE room_reservations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -174,7 +179,10 @@ CREATE TABLE notification_preferences (
     enable_push BOOLEAN NOT NULL DEFAULT TRUE,
     enable_10m_class_alert BOOLEAN NOT NULL DEFAULT TRUE,
     enable_lab_reminders BOOLEAN NOT NULL DEFAULT TRUE,
-    enable_exam_alerts BOOLEAN NOT NULL DEFAULT TRUE
+    enable_exam_alerts BOOLEAN NOT NULL DEFAULT TRUE,
+    per_type JSONB NOT NULL DEFAULT '{}'::jsonb,
+    quiet_start TIME,
+    quiet_end TIME
 );
 
 CREATE TABLE notifications (
@@ -183,9 +191,8 @@ CREATE TABLE notifications (
     title VARCHAR(200) NOT NULL,
     body TEXT NOT NULL,
     data_payload JSONB DEFAULT '{}'::jsonb,
-    -- Optional reference to the class_schedules row this alert is about. It
-    -- makes the Celery Beat 1-minute scanner idempotent: one alert per
-    -- (recipient, class session) is enforced by uq_notification_class_session.
+    -- Legacy schedule reference. New occurrence-level deduplication lives
+    -- in notification_log; the new scanner leaves this column NULL.
     class_session_id UUID REFERENCES class_schedules(id) ON DELETE CASCADE,
     notified_at TIMESTAMPTZ,
     is_read BOOLEAN NOT NULL DEFAULT FALSE,
@@ -193,6 +200,61 @@ CREATE TABLE notifications (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_notification_class_session UNIQUE (recipient_id, class_session_id)
 );
+CREATE INDEX ix_notifications_recipient_read ON notifications (recipient_id, is_read);
+
+CREATE TABLE device_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token TEXT NOT NULL UNIQUE,
+    platform VARCHAR(20) NOT NULL DEFAULT 'web',
+    last_seen TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX ix_device_tokens_user_id ON device_tokens (user_id);
+
+CREATE TABLE notification_batches (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(40) NOT NULL,
+    priority VARCHAR(10) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    due_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX ix_notification_batches_pending_due ON notification_batches (due_at)
+    WHERE status = 'pending';
+
+CREATE TABLE notification_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    event_id UUID NOT NULL,
+    type VARCHAR(40) NOT NULL,
+    priority VARCHAR(10) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    notification_id BIGINT REFERENCES notifications(id) ON DELETE SET NULL,
+    batch_id UUID REFERENCES notification_batches(id) ON DELETE SET NULL,
+    due_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_notification_log_event UNIQUE (user_id, event_id, type),
+    CONSTRAINT ck_notification_log_priority CHECK (priority IN ('high', 'medium', 'low'))
+);
+CREATE INDEX ix_notification_log_pending ON notification_log (user_id, type, due_at)
+    WHERE status = 'pending';
+
+CREATE TABLE notification_deliveries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    batch_id UUID NOT NULL REFERENCES notification_batches(id) ON DELETE CASCADE,
+    device_id UUID REFERENCES device_tokens(id) ON DELETE SET NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    attempts INT NOT NULL DEFAULT 0,
+    attempted_at TIMESTAMPTZ,
+    next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_error VARCHAR(40),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_notification_delivery_device UNIQUE (batch_id, device_id)
+);
+CREATE INDEX ix_notification_deliveries_retry
+    ON notification_deliveries (batch_id, status, next_attempt_at);
 
 -- 5. Resources & Books
 CREATE TABLE academic_resources (

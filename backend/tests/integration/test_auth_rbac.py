@@ -50,7 +50,7 @@ async def test_simultaneous_refresh_requests_do_not_leave_live_descendant(api, d
 
 async def test_expired_token_and_logout(api, database):
     user = await database.user()
-    token = (await login(api, user)).cookies['refresh_token']
+    await login(api, user)
     await database.conn.execute("UPDATE refresh_tokens SET expires_at=now()-interval '1 second'")
     assert (await api.post('/api/v1/auth/refresh')).status_code == 401
     await login(api, user)

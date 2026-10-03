@@ -5,7 +5,6 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { PageSkeleton } from '@/components/shared/PageSkeleton';
 import { scheduleApi } from '../api/scheduleApi';
 import { ScheduleCalendar } from '../components/ScheduleCalendar';
-import type { ClassSchedule } from '@/types/academic';
 
 export default function SchedulePage() {
   const { data, isLoading, isError } = useQuery({
@@ -14,7 +13,7 @@ export default function SchedulePage() {
     retry: false,
   });
 
-  const classes = data ?? [];
+  const classes = useMemo(() => data ?? [], [data]);
   const days = useMemo(() => {
     const unique = Array.from(new Set(classes.map((item) => item.day_of_week)));
     return unique.length ? unique : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];

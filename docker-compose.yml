@@ -147,7 +147,7 @@ services:
       dockerfile: Dockerfile
     container_name: sust_eee_celery_beat
     restart: always
-    command: celery -A app.core.celery_app.celery_app beat --loglevel=info
+    command: celery -A app.core.celery_app.celery_app beat --loglevel=info --scheduler app.core.beat:SingletonScheduler --max-interval=5
     depends_on:
       migrate:
         condition: service_completed_successfully
