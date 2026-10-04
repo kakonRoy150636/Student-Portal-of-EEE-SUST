@@ -5,7 +5,7 @@ return a response model. No ORM access and no business rules here.
 """
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import RequireRole, get_current_user
@@ -13,6 +13,14 @@ from app.core.database import get_db
 from app.models.user import User, UserRole
 from app.schemas.alumni import (
     AlumniDashboardResponse,
+    AlumniDirectoryResponse,
+    AlumniEmploymentInput,
+    AlumniEmploymentResponse,
+    AlumniImportPreviewResponse,
+    AlumniImportResponse,
+    AlumniBatchResponse,
+    AlumniBatchSummaryResponse,
+    AlumniProfileDetailResponse,
     AlumniLandingResponse,
     AlumniProfileCreate,
     AlumniProfileResponse,
@@ -36,7 +44,7 @@ from app.schemas.alumni import (
 )
 from app.schemas.auth import RegisterResponse
 from app.services.alumni_service import AlumniService
-from app.api.request_limits import limit_registration
+from app.api.request_limits import limit_alumni_search, limit_registration
 
 router = APIRouter(prefix="/alumni", tags=["Alumni"])
 
@@ -57,6 +65,35 @@ async def register_alumni(
 async def alumni_landing(db: AsyncSession = Depends(get_db)):
     """Public landing page: live stats plus published news, events, gallery."""
     return await AlumniService(db).landing()
+
+
+@router.get("/batches", response_model=list[AlumniBatchResponse])
+async def alumni_batches(db: AsyncSession = Depends(get_db)):
+    return await AlumniService(db).list_batches()
+
+
+@router.get("/batches/{year}/summary", response_model=AlumniBatchSummaryResponse)
+async def alumni_batch_summary(
+    year: int = Query(..., ge=2010), db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).batch_summary(year)
+
+
+@router.get("/", response_model=AlumniDirectoryResponse, dependencies=[Depends(limit_alumni_search)])
+async def alumni_directory(
+    batch: int | None = Query(default=None, ge=2010),
+    company: str | None = Query(default=None, max_length=120),
+    country: str | None = Query(default=None, max_length=120),
+    sector: str | None = Query(default=None, pattern=r"^(industry|academia|government|startup|higher_study|other)$"),
+    q: str | None = Query(default=None, min_length=1, max_length=120),
+    page: int = Query(default=1, ge=1, le=100000),
+    page_size: int = Query(default=20, ge=1, le=100),
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).directory_page(
+        user, batch=batch, company=company, country=country, sector=sector, q=q,
+        page=page, page_size=page_size,
+    )
 
 
 @router.get("/directory", response_model=list[AlumniProfileResponse])
@@ -83,6 +120,18 @@ async def get_directory_profile(
 @router.get("/me", response_model=AlumniProfileResponse | None)
 async def my_profile(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     return await AlumniService(db).get_my_profile(user)
+
+
+@router.get("/me/employments", response_model=list[AlumniEmploymentResponse])
+async def my_employments(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    return await AlumniService(db).my_employments(user)
+
+
+@router.put("/me/employments", response_model=list[AlumniEmploymentResponse])
+async def replace_my_employments(
+    payload: list[AlumniEmploymentInput], user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).update_my_employments(user, payload)
 
 
 @router.patch("/me", response_model=AlumniProfileResponse)
@@ -274,3 +323,47 @@ async def reject_claim(
 ):
     """Reject a pending claim: membership is refused and the account stays closed."""
     return await AlumniService(db).reject(profile_id, user, payload)
+
+
+@router.patch("/admin/{profile_id}/verify", response_model=AlumniProfileResponse)
+async def verify_alumni_profile(
+    profile_id: uuid.UUID, user: User = Depends(admin_only), db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).approve(profile_id, user)
+
+
+@router.patch("/admin/{profile_id}/reject", response_model=AlumniProfileResponse)
+async def reject_alumni_profile(
+    profile_id: uuid.UUID, payload: AlumniVerificationDecision | None = None,
+    user: User = Depends(admin_only), db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).reject(profile_id, user, payload)
+
+
+@router.post("/admin/import/preview", response_model=AlumniImportPreviewResponse)
+async def preview_alumni_import(
+    file: UploadFile = File(...), user: User = Depends(admin_only), db: AsyncSession = Depends(get_db),
+):
+    content = await file.read(5 * 1024 * 1024 + 1)
+    if len(content) > 5 * 1024 * 1024:
+        from app.core.exceptions import ResourceConflictException
+        raise ResourceConflictException("CSV file must be 5 MB or smaller.")
+    return await AlumniService(db).preview_import(content)
+
+
+@router.post("/admin/import", response_model=AlumniImportResponse)
+async def import_alumni_csv(
+    file: UploadFile = File(...), user: User = Depends(admin_only), db: AsyncSession = Depends(get_db),
+):
+    content = await file.read(5 * 1024 * 1024 + 1)
+    if len(content) > 5 * 1024 * 1024:
+        from app.core.exceptions import ResourceConflictException
+        raise ResourceConflictException("CSV file must be 5 MB or smaller.")
+    return await AlumniService(db).import_csv(content)
+
+
+@router.get("/{profile_id}", response_model=AlumniProfileDetailResponse)
+async def alumni_profile_detail(
+    profile_id: uuid.UUID, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+):
+    return await AlumniService(db).directory_profile(profile_id, user)

@@ -23,3 +23,7 @@ async def limit_ai(user: User = Depends(get_current_user)):
 
 async def limit_search(user: User = Depends(get_current_user)):
     await enforce_request_limit("resource-search", str(user.id), 60)
+
+
+async def limit_alumni_search(user: User = Depends(get_current_user)):
+    await enforce_request_limit("alumni-search", str(user.id), 60)

@@ -13,13 +13,14 @@ EventType = Literal["reunion", "webinar", "meetup"]
 RsvpStatus = Literal["attending", "interested", "not_attending"]
 ScholarshipStatus = Literal["submitted", "under_review", "approved", "rejected"]
 MentorshipStatus = Literal["requested", "active", "ended", "declined"]
+EmploymentSector = Literal["industry", "academia", "government", "startup", "higher_study", "other"]
 
 
 class AlumniRegisterRequest(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=150)
     email: EmailStr
     password: str = Field(..., min_length=6)
-    batch_year: int = Field(..., ge=1960, le=2100)
+    batch_year: int = Field(..., ge=2010, le=2100)
     department: str = Field(..., min_length=2, max_length=100)
     graduation_date: date
     current_company: str | None = Field(None, max_length=150)
@@ -40,7 +41,7 @@ class AlumniRegisterRequest(BaseModel):
 class AlumniProfileCreate(BaseModel):
     """Existing portal users submit a batch/department claim."""
 
-    batch_year: int = Field(..., ge=1960, le=2100)
+    batch_year: int = Field(..., ge=2010, le=2100)
     department: str = Field(..., min_length=2, max_length=100)
     graduation_date: date
     current_company: str | None = Field(None, max_length=150)
@@ -51,7 +52,7 @@ class AlumniProfileCreate(BaseModel):
 
 
 class AlumniProfileUpdate(BaseModel):
-    batch_year: int | None = Field(None, ge=1960, le=2100)
+    batch_year: int | None = Field(None, ge=2010, le=2100)
     department: str | None = Field(None, min_length=2, max_length=100)
     graduation_date: date | None = None
     current_company: str | None = Field(None, max_length=150)
@@ -59,6 +60,12 @@ class AlumniProfileUpdate(BaseModel):
     industry: str | None = Field(None, max_length=100)
     linkedin_url: str | None = Field(None, max_length=255)
     is_visible: bool | None = None
+    current_city: str | None = Field(None, max_length=120)
+    current_country: str | None = Field(None, max_length=120)
+    bio: str | None = Field(None, max_length=2000)
+    phone: str | None = Field(None, max_length=30)
+    email_visible: bool | None = None
+    phone_visible: bool | None = None
 
 
 class AlumniUserSummary(BaseModel):
@@ -85,12 +92,111 @@ class AlumniProfileResponse(BaseModel):
     verified_by_admin: bool
     membership_status: str
     is_visible: bool
+    current_city: str | None = None
+    current_country: str | None = None
+    bio: str | None = None
+    phone: str | None = None
+    email_visible: bool = False
+    phone_visible: bool = False
+    is_verified: bool = False
     created_at: datetime
     updated_at: datetime
     user: AlumniUserSummary | None = None
 
     class Config:
         from_attributes = True
+
+
+class AlumniEmploymentInput(BaseModel):
+    organization: str = Field(..., min_length=2, max_length=255)
+    position: str = Field(..., min_length=2, max_length=255)
+    sector: EmploymentSector = "other"
+    city: str | None = Field(None, max_length=120)
+    country: str | None = Field(None, max_length=120)
+    start_date: date | None = None
+    end_date: date | None = None
+    is_current: bool = False
+
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValueError("end_date must be on or after start_date")
+        if self.is_current and self.end_date is not None:
+            raise ValueError("current employment cannot have an end_date")
+        return self
+
+
+class AlumniEmploymentResponse(AlumniEmploymentInput):
+    id: uuid.UUID
+    alumni_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AlumniBatchResponse(BaseModel):
+    year: int
+    alumni_count: int
+
+
+class AlumniDirectoryItem(BaseModel):
+    id: uuid.UUID
+    full_name: str
+    batch_year: int
+    department: str
+    current_city: str | None = None
+    current_country: str | None = None
+    linkedin_url: str | None = None
+    email: EmailStr | None = None
+    phone: str | None = None
+    current_employment: AlumniEmploymentResponse | None = None
+
+
+class AlumniDirectoryResponse(BaseModel):
+    items: list[AlumniDirectoryItem]
+    page: int
+    page_size: int
+    total: int
+    pages: int
+
+
+class AlumniBatchSummaryResponse(BaseModel):
+    year: int
+    total: int
+    employed: int
+    higher_study: int
+    abroad: int
+    top_companies: list[dict[str, int | str]]
+    top_countries: list[dict[str, int | str]]
+
+
+class AlumniProfileDetailResponse(AlumniDirectoryItem):
+    bio: str | None = None
+    is_verified: bool
+    membership_status: str
+    is_visible: bool
+    employments: list[AlumniEmploymentResponse]
+
+
+class AlumniImportError(BaseModel):
+    row: int
+    field: str | None = None
+    message: str
+
+
+class AlumniImportPreviewResponse(BaseModel):
+    dry_run: bool = True
+    total_rows: int
+    valid_rows: int
+    invalid_rows: int
+    errors: list[AlumniImportError]
+
+
+class AlumniImportResponse(AlumniImportPreviewResponse):
+    imported_rows: int = 0
+    updated_rows: int = 0
 
 
 class AlumniVerificationDecision(BaseModel):

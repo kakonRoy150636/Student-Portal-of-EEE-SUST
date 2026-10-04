@@ -33,9 +33,13 @@ from __future__ import annotations
 
 import re
 import uuid
+import csv
+import io
+import secrets
 from datetime import date, datetime, timezone
 
 from sqlalchemy.exc import OperationalError, ProgrammingError
+from sqlalchemy import delete, select
 
 from app.core.exceptions import (
     ForbiddenException,
@@ -44,6 +48,7 @@ from app.core.exceptions import (
 )
 from app.models.alumni import (
     AlumniProfile,
+    AlumniEmployment,
     Event,
     EventRSVP,
     MembershipStatus,
@@ -71,6 +76,16 @@ from app.schemas.alumni import (
     AlumniProfileUpdate,
     AlumniRegisterRequest,
     AlumniVerificationDecision,
+    AlumniBatchResponse,
+    AlumniBatchSummaryResponse,
+    AlumniDirectoryItem,
+    AlumniDirectoryResponse,
+    AlumniEmploymentInput,
+    AlumniEmploymentResponse,
+    AlumniImportError,
+    AlumniImportPreviewResponse,
+    AlumniImportResponse,
+    AlumniProfileDetailResponse,
     EventCreate,
     EventResponse,
     EventRsvpRequest,
@@ -201,7 +216,7 @@ class AlumniService:
         profile = await self.repo.get_profile_by_user_id(user.id)
         if not profile:
             return None
-        return AlumniProfileResponse.model_validate(profile)
+        return self._profile_response(profile, viewer_id=user.id)
 
     async def update_my_profile(self, user: User, dto: AlumniProfileUpdate) -> AlumniProfileResponse:
         profile = await self.repo.get_profile_by_user_id(user.id)
@@ -212,7 +227,7 @@ class AlumniService:
             setattr(profile, key, value)
         await self.db.commit()
         await self.db.refresh(profile)
-        return AlumniProfileResponse.model_validate(profile)
+        return self._profile_response(profile, viewer_id=user.id)
 
     async def list_pending_verifications(self) -> list[AlumniProfileResponse]:
         """Queue for the admin verification view.
@@ -318,6 +333,222 @@ class AlumniService:
                 membership_status=MembershipStatus.ACTIVE.value, limit=min(limit, 100),
             )
         return [AlumniProfileResponse.model_validate(row) for row in rows]
+
+    async def list_batches(self) -> list[AlumniBatchResponse]:
+        current_year = date.today().year
+        counts = await self.repo.batch_counts()
+        return [AlumniBatchResponse(year=year, alumni_count=counts.get(year, 0))
+                for year in range(2010, current_year + 1)]
+
+    async def directory_page(
+        self, user: User, *, batch: int | None, company: str | None, country: str | None,
+        sector: str | None, q: str | None, page: int, page_size: int,
+    ) -> AlumniDirectoryResponse:
+        rows, total = await self.repo.directory_page(
+            batch=batch, company=company, country=country, sector=sector, q=q,
+            page=page, page_size=page_size,
+        )
+        items = [self._directory_item(profile, row_user, employment, user.id) for profile, row_user, employment in rows]
+        return AlumniDirectoryResponse(
+            items=items, page=page, page_size=page_size, total=total,
+            pages=(total + page_size - 1) // page_size,
+        )
+
+    async def batch_summary(self, year: int) -> AlumniBatchSummaryResponse:
+        if year > date.today().year:
+            raise NotFoundException("That batch does not exist yet.")
+        return AlumniBatchSummaryResponse(**await self.repo.summary(year))
+
+    async def directory_profile(self, profile_id: uuid.UUID, viewer: User) -> AlumniProfileDetailResponse:
+        profile = await self.repo.detail(profile_id)
+        if not profile:
+            raise NotFoundException("Alumni profile not found.")
+        return self._detail_response(profile, viewer.id)
+
+    async def update_my_employments(
+        self, user: User, employments: list[AlumniEmploymentInput]
+    ) -> list[AlumniEmploymentResponse]:
+        profile = await self.repo.get_profile_by_user_id(user.id)
+        if not profile:
+            raise NotFoundException("Alumni profile not found.")
+        if sum(item.is_current for item in employments) > 1:
+            raise ResourceConflictException("Only one employment can be current.")
+        await self.db.execute(delete(AlumniEmployment).where(AlumniEmployment.alumni_id == profile.id))
+        rows = [AlumniEmployment(alumni_id=profile.id, **item.model_dump()) for item in employments]
+        self.db.add_all(rows)
+        await self.db.commit()
+        return [AlumniEmploymentResponse.model_validate(row) for row in rows]
+
+    async def my_employments(self, user: User) -> list[AlumniEmploymentResponse]:
+        profile = await self.repo.get_profile_by_user_id(user.id)
+        if not profile:
+            raise NotFoundException("Alumni profile not found.")
+        rows = list((await self.db.scalars(
+            select(AlumniEmployment).where(AlumniEmployment.alumni_id == profile.id)
+            .order_by(AlumniEmployment.is_current.desc(), AlumniEmployment.start_date.desc().nullslast())
+        )).all())
+        return [AlumniEmploymentResponse.model_validate(row) for row in rows]
+
+    async def preview_import(self, content: bytes) -> AlumniImportPreviewResponse:
+        records, errors, total = self._parse_import(content)
+        return AlumniImportPreviewResponse(
+            total_rows=total, valid_rows=len(records), invalid_rows=total - len(records), errors=errors,
+        )
+
+    async def import_csv(self, content: bytes) -> AlumniImportResponse:
+        records, errors, total = self._parse_import(content)
+        if errors:
+            return AlumniImportResponse(
+                dry_run=False, total_rows=total, valid_rows=len(records), invalid_rows=len(errors),
+                errors=errors, imported_rows=0, updated_rows=0,
+            )
+        from app.core.security import get_password_hash
+
+        imported = 0
+        updated = 0
+        for record in records:
+            email = record.pop("email")
+            existing = await self.users.get_by_email(email)
+            if existing:
+                user = existing
+                user.full_name = record.pop("full_name")
+                user.role = UserRole.ALUMNI
+                user.is_active = True
+                updated += 1
+            else:
+                user = User(
+                    identifier=f"alum-{uuid.uuid4().hex[:8]}", email=email,
+                    full_name=record.pop("full_name"),
+                    password_hash=await get_password_hash(secrets.token_urlsafe(32)),
+                    role=UserRole.ALUMNI, is_active=True,
+                )
+                self.db.add(user)
+                await self.db.flush()
+                imported += 1
+            profile = await self.repo.get_profile_by_user_id(user.id)
+            employment_data = record.pop("employment", None)
+            if profile is None:
+                profile = AlumniProfile(user_id=user.id, **record)
+                self.db.add(profile)
+                await self.db.flush()
+            else:
+                for key, value in record.items():
+                    setattr(profile, key, value)
+                profile.is_verified = True
+                profile.verified_by_admin = True
+                profile.membership_status = MembershipStatus.ACTIVE.value
+            if employment_data:
+                current = await self.db.scalar(select(AlumniEmployment).where(
+                    AlumniEmployment.alumni_id == profile.id, AlumniEmployment.is_current.is_(True)
+                ))
+                if current:
+                    for key, value in employment_data.items():
+                        setattr(current, key, value)
+                else:
+                    self.db.add(AlumniEmployment(alumni_id=profile.id, **employment_data))
+        await self.db.commit()
+        return AlumniImportResponse(
+            dry_run=False, total_rows=total, valid_rows=total, invalid_rows=0, errors=[],
+            imported_rows=imported, updated_rows=updated,
+        )
+
+    @staticmethod
+    def _parse_import(content: bytes):
+        errors: list[AlumniImportError] = []
+        records: list[dict] = []
+        try:
+            text = content.decode("utf-8-sig")
+            reader = csv.DictReader(io.StringIO(text))
+        except UnicodeDecodeError:
+            return [], [AlumniImportError(row=1, message="CSV must be UTF-8 encoded")], 0
+        required = {"email", "full_name", "batch_year", "department", "graduation_date"}
+        headers = set(reader.fieldnames or [])
+        missing = required - headers
+        if missing:
+            return [], [AlumniImportError(row=1, message=f"Missing required columns: {', '.join(sorted(missing))}")], 0
+        for row_number, row in enumerate(reader, 2):
+            try:
+                batch_year = int((row.get("batch_year") or "").strip())
+                if batch_year < 2010 or batch_year > date.today().year:
+                    raise ValueError("batch_year must be between 2010 and the current year")
+                email = (row.get("email") or "").strip()
+                if "@" not in email or len(email) > 255:
+                    raise ValueError("email is invalid")
+                full_name = (row.get("full_name") or "").strip()
+                department = (row.get("department") or "").strip()
+                if len(full_name) < 2 or len(department) < 2:
+                    raise ValueError("full_name and department are required")
+                graduation_date = date.fromisoformat((row.get("graduation_date") or "").strip())
+                sector = (row.get("sector") or "other").strip().lower()
+                if sector not in {"industry", "academia", "government", "startup", "higher_study", "other"}:
+                    raise ValueError("sector is invalid")
+                employment = None
+                organization = (row.get("organization") or row.get("current_company") or "").strip()
+                if organization:
+                    employment = {
+                        "organization": organization,
+                        "position": (row.get("position") or row.get("designation") or "Not specified").strip(),
+                        "sector": sector,
+                        "city": (row.get("employment_city") or row.get("city") or "").strip() or None,
+                        "country": (row.get("employment_country") or row.get("country") or "").strip() or None,
+                        "start_date": date.fromisoformat(row["start_date"]) if row.get("start_date") else None,
+                        "end_date": date.fromisoformat(row["end_date"]) if row.get("end_date") else None,
+                        "is_current": (row.get("is_current") or "true").strip().lower() in {"1", "true", "yes"},
+                    }
+                    if employment["is_current"]:
+                        employment["end_date"] = None
+                records.append({
+                    "email": email, "full_name": full_name, "batch_year": batch_year,
+                    "department": department, "graduation_date": graduation_date,
+                    "current_company": organization or None,
+                    "designation": (row.get("designation") or row.get("position") or "").strip() or None,
+                    "industry": (row.get("industry") or "").strip() or None,
+                    "linkedin_url": (row.get("linkedin_url") or "").strip() or None,
+                    "current_city": (row.get("current_city") or row.get("city") or "").strip() or None,
+                    "current_country": (row.get("current_country") or row.get("country") or "").strip() or None,
+                    "bio": (row.get("bio") or "").strip() or None,
+                    "phone": (row.get("phone") or "").strip() or None,
+                    "email_visible": (row.get("email_visible") or "false").strip().lower() in {"1", "true", "yes"},
+                    "phone_visible": (row.get("phone_visible") or "false").strip().lower() in {"1", "true", "yes"},
+                    "verified_by_admin": True, "is_verified": True,
+                    "membership_status": MembershipStatus.ACTIVE.value, "is_visible": True,
+                    "employment": employment,
+                })
+            except (TypeError, ValueError) as error:
+                errors.append(AlumniImportError(row=row_number, message=str(error)))
+        return records, errors, len(records) + len(errors)
+
+    @staticmethod
+    def _directory_item(profile, user, employment, viewer_id):
+        can_email = profile.email_visible or profile.user_id == viewer_id
+        can_phone = profile.phone_visible or profile.user_id == viewer_id
+        return AlumniDirectoryItem(
+            id=profile.id, full_name=user.full_name, batch_year=profile.batch_year,
+            department=profile.department, current_city=profile.current_city,
+            current_country=profile.current_country, linkedin_url=profile.linkedin_url,
+            email=user.email if can_email else None,
+            phone=profile.phone if can_phone else None,
+            current_employment=AlumniEmploymentResponse.model_validate(employment) if employment else None,
+        )
+
+    def _profile_response(self, profile, viewer_id=None):
+        payload = AlumniProfileResponse.model_validate(profile)
+        if payload.user:
+            if profile.user_id != viewer_id and not profile.email_visible:
+                payload.user.email = None
+            elif profile.user is not None:
+                payload.user.email = profile.user.email
+        if profile.user_id != viewer_id and not profile.phone_visible:
+            payload.phone = None
+        return payload
+
+    def _detail_response(self, profile, viewer_id):
+        item = self._directory_item(profile, profile.user, next((e for e in profile.employments if e.is_current), None), viewer_id)
+        return AlumniProfileDetailResponse(
+            **item.model_dump(), bio=profile.bio, is_verified=profile.is_verified,
+            membership_status=profile.membership_status, is_visible=profile.is_visible,
+            employments=[AlumniEmploymentResponse.model_validate(row) for row in profile.employments],
+        )
 
     async def get_directory_profile(self, profile_id: uuid.UUID) -> AlumniProfileResponse:
         profile = await self.repo.get_profile(profile_id)
