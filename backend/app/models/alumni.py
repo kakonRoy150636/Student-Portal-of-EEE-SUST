@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import INT4RANGE, ExcludeConstraint, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -52,6 +52,7 @@ class AlumniProfile(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("user_id", name="uq_alumni_profiles_user"),
         Index("ix_alumni_profiles_batch_industry", "batch_year", "industry"),
+        CheckConstraint("batch_year >= 2010", name="ck_alumni_profiles_batch_year"),
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -72,10 +73,51 @@ class AlumniProfile(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     # Opt-in: only visible profiles appear in the public directory / search.
     is_visible: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    current_city: Mapped[str | None] = mapped_column(String(120))
+    current_country: Mapped[str | None] = mapped_column(String(120), index=True)
+    bio: Mapped[str | None] = mapped_column(String(2000))
+    phone: Mapped[str | None] = mapped_column(String(30))
+    email_visible: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    phone_visible: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     # search_tsv is a generated Postgres tsvector (see schema.sql / migration 005).
     # It is not mapped here so SQLite test metadata can still create the table.
 
     user: Mapped["User"] = relationship("User", back_populates="alumni_profile")
+    employments: Mapped[list["AlumniEmployment"]] = relationship(
+        back_populates="alumni", cascade="all, delete-orphan", order_by="AlumniEmployment.start_date.desc()"
+    )
+
+
+class AlumniEmployment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "alumni_employments"
+    __table_args__ = (
+        CheckConstraint(
+            "sector IN ('industry', 'academia', 'government', 'startup', 'higher_study', 'other')",
+            name="ck_alumni_employments_sector",
+        ),
+        CheckConstraint(
+            "end_date IS NULL OR start_date IS NULL OR end_date >= start_date",
+            name="ck_alumni_employments_dates",
+        ),
+        Index("ix_alumni_employments_alumni", "alumni_id"),
+        Index("ix_alumni_employments_country_sector", "country", "sector"),
+        Index("ix_alumni_employments_organization", "organization"),
+    )
+
+    alumni_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("alumni_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    organization: Mapped[str] = mapped_column(String(255), nullable=False)
+    position: Mapped[str] = mapped_column(String(255), nullable=False)
+    sector: Mapped[str] = mapped_column(String(30), nullable=False, default="other")
+    city: Mapped[str | None] = mapped_column(String(120))
+    country: Mapped[str | None] = mapped_column(String(120), index=True)
+    start_date: Mapped[date | None] = mapped_column(Date)
+    end_date: Mapped[date | None] = mapped_column(Date)
+    is_current: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+
+    alumni: Mapped[AlumniProfile] = relationship(back_populates="employments")
 
 
 class Event(Base, UUIDPrimaryKeyMixin, TimestampMixin):

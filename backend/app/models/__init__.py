@@ -21,6 +21,7 @@ from app.models.ai_knowledge import (  # noqa: F401
     StudyPlan,
 )
 from app.models.alumni import (  # noqa: F401
+    AlumniEmployment,
     AlumniProfile,
     Event,
     EventRSVP,
@@ -65,6 +66,7 @@ __all__ = [
     "StudentProfile",
     "FacultyProfile",
     "AlumniProfile",
+    "AlumniEmployment",
     "Event",
     "EventRSVP",
     "Scholarship",
