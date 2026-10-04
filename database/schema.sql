@@ -421,10 +421,17 @@ CREATE TABLE document_chunks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id UUID REFERENCES knowledge_documents(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
-    embedding vector(768) NOT NULL,
+    embedding vector(768),
+    embedding_model VARCHAR(100),
+    page_number INTEGER,
+    section VARCHAR(255),
     tsv_content TSVECTOR GENERATED ALWAYS AS (to_tsvector('english', content)) STORED,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_document_chunk_page CHECK (page_number IS NULL OR page_number > 0)
 );
+CREATE INDEX ix_document_chunks_tsv ON document_chunks USING GIN (tsv_content);
+CREATE INDEX ix_document_chunks_document ON document_chunks (document_id);
+CREATE INDEX ix_knowledge_documents_course ON knowledge_documents (course_id);
 
 CREATE TABLE ai_chat_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

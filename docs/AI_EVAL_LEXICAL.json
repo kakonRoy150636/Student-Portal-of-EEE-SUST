@@ -1,0 +1,1013 @@
+{
+  "dataset_description": "Synthetic academic example corpus, NOT the official SUST syllabus. Sections and expected answers are explicit fixtures. Replace with faculty-reviewed real-source pairs before production tuning.",
+  "mode": "lexical",
+  "vector_note": "Vector weighting disabled",
+  "weights": {
+    "lexical": 1.0,
+    "vector": 0,
+    "rrf_k": 60
+  },
+  "top_k": 5,
+  "cases": 25,
+  "answerable_cases": 20,
+  "hits": 20,
+  "retrieval_hit_rate": 1.0,
+  "answerable_confidence_acceptance_rate": 1.0,
+  "mean_reciprocal_rank": 0.975,
+  "unanswerable_cases": 5,
+  "unanswerable_abstention_rate": 1.0,
+  "results": [
+    {
+      "id": "ohm",
+      "question": "What relation does Ohm's law give?",
+      "expected_answer": "Voltage equals current times resistance: V = IR.",
+      "expected_sections": [
+        "Ohm's law"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Ohm's law",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 1.0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Sinusoidal RMS",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Kirchhoff voltage law",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Kirchhoff current law",
+          "page_number": null,
+          "rrf_score": 0.015625,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "kcl",
+      "question": "What is Kirchhoff's current law at a node?",
+      "expected_answer": "The algebraic sum of currents at a node is zero.",
+      "expected_sections": [
+        "Kirchhoff current law"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Kirchhoff current law",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 1.0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Ohm's law",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0.4,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Kirchhoff voltage law",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0.4,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Superposition",
+          "page_number": null,
+          "rrf_score": 0.015625,
+          "lexical_coverage": 0.4,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "AC power factor",
+          "page_number": null,
+          "rrf_score": 0.015384615384615385,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "kvl",
+      "question": "What is Kirchhoff's voltage law around a loop?",
+      "expected_answer": "The algebraic sum of voltages around a closed loop is zero.",
+      "expected_sections": [
+        "Kirchhoff voltage law"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Kirchhoff voltage law",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 1.0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Ohm's law",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0.4,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Sinusoidal RMS",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Superposition",
+          "page_number": null,
+          "rrf_score": 0.015625,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Kirchhoff current law",
+          "page_number": null,
+          "rrf_score": 0.015384615384615385,
+          "lexical_coverage": 0.4,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "series",
+      "question": "How is series resistor resistance calculated?",
+      "expected_answer": "Series equivalent resistance is the sum of individual resistances.",
+      "expected_sections": [
+        "Series resistors"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Series resistors",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 0.75,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Ohm's law",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0.5,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Thevenin theorem",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0.5,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Norton theorem",
+          "page_number": null,
+          "rrf_score": 0.015625,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Parallel resistors",
+          "page_number": null,
+          "rrf_score": 0.015384615384615385,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "parallel",
+      "question": "What voltage is shared by parallel resistors?",
+      "expected_answer": "Parallel resistors share the same voltage.",
+      "expected_sections": [
+        "Parallel resistors"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Parallel resistors",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 0.6,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Ohm's law",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Sinusoidal RMS",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0.4,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Kirchhoff voltage law",
+          "page_number": null,
+          "rrf_score": 0.015625,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Superposition",
+          "page_number": null,
+          "rrf_score": 0.015384615384615385,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "thevenin",
+      "question": "What is a Thevenin equivalent circuit?",
+      "expected_answer": "An open-circuit voltage source in series with the Thevenin resistance.",
+      "expected_sections": [
+        "Thevenin theorem"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Thevenin theorem",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 0.6666666666666666,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Norton theorem",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0.6666666666666666,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Sinusoidal RMS",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "RL time constant",
+          "page_number": null,
+          "rrf_score": 0.015625,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Superposition",
+          "page_number": null,
+          "rrf_score": 0.015384615384615385,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "norton",
+      "question": "What is a Norton equivalent circuit?",
+      "expected_answer": "A short-circuit current source in parallel with the Norton resistance.",
+      "expected_sections": [
+        "Norton theorem"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Norton theorem",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 0.6666666666666666,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Thevenin theorem",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Sinusoidal RMS",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "RL time constant",
+          "page_number": null,
+          "rrf_score": 0.015625,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Superposition",
+          "page_number": null,
+          "rrf_score": 0.015384615384615385,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "superposition",
+      "question": "How does superposition treat independent sources?",
+      "expected_answer": "Keep one independent source active at a time and sum the individual responses.",
+      "expected_sections": [
+        "Superposition"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Superposition",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 0.75,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Thevenin theorem",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Norton theorem",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "capacitor",
+      "question": "What energy is stored in a capacitor?",
+      "expected_answer": "Capacitor energy is one half C times voltage squared.",
+      "expected_sections": [
+        "Capacitor energy"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Capacitor energy",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 1.0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Inductor energy",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0.6666666666666666,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Kirchhoff voltage law",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "inductor",
+      "question": "What energy is stored in an inductor?",
+      "expected_answer": "Inductor energy is one half L times current squared.",
+      "expected_sections": [
+        "Inductor energy"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Inductor energy",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 1.0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Capacitor energy",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0.6666666666666666,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "RL time constant",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Kirchhoff voltage law",
+          "page_number": null,
+          "rrf_score": 0.015625,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "rc",
+      "question": "What is the RC circuit time constant?",
+      "expected_answer": "The RC time constant is resistance times capacitance.",
+      "expected_sections": [
+        "RC time constant"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "RC time constant",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 1.0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "RL time constant",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0.75,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Thevenin theorem",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Superposition",
+          "page_number": null,
+          "rrf_score": 0.015625,
+          "lexical_coverage": 0.5,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "AC power factor",
+          "page_number": null,
+          "rrf_score": 0.015384615384615385,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "rl",
+      "question": "What is the RL circuit time constant?",
+      "expected_answer": "The RL time constant is inductance divided by resistance.",
+      "expected_sections": [
+        "RL time constant"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 2,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "RC time constant",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 0.75,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "RL time constant",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 1.0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Thevenin theorem",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Superposition",
+          "page_number": null,
+          "rrf_score": 0.015625,
+          "lexical_coverage": 0.5,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "AC power factor",
+          "page_number": null,
+          "rrf_score": 0.015384615384615385,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "rms",
+      "question": "What is the RMS value of a sinusoidal voltage?",
+      "expected_answer": "Peak voltage divided by the square root of two.",
+      "expected_sections": [
+        "Sinusoidal RMS"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Sinusoidal RMS",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 1.0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "AC power factor",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0.75,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Kirchhoff voltage law",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Superposition",
+          "page_number": null,
+          "rrf_score": 0.015625,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Ohm's law",
+          "page_number": null,
+          "rrf_score": 0.015384615384615385,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "power-factor",
+      "question": "What is the sinusoidal power factor?",
+      "expected_answer": "Power factor is cosine of the phase angle between voltage and current.",
+      "expected_sections": [
+        "AC power factor"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "AC power factor",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 1.0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Sinusoidal RMS",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Ideal transformer",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "transformer",
+      "question": "What is the ideal transformer voltage ratio?",
+      "expected_answer": "The primary-to-secondary voltage ratio equals the primary-to-secondary turns ratio.",
+      "expected_sections": [
+        "Ideal transformer"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Ideal transformer",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 1.0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Sinusoidal RMS",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Kirchhoff voltage law",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Superposition",
+          "page_number": null,
+          "rrf_score": 0.015625,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Ideal op-amp",
+          "page_number": null,
+          "rrf_score": 0.015384615384615385,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "synchronous",
+      "question": "How is synchronous machine speed related to frequency and poles?",
+      "expected_answer": "Synchronous speed is 120 times frequency divided by pole count in rpm.",
+      "expected_sections": [
+        "Synchronous speed"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Synchronous speed",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 0.8333333333333334,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Induction motor slip",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0.3333333333333333,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Sampling theorem",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Ohm's law",
+          "page_number": null,
+          "rrf_score": 0.015625,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Sinusoidal RMS",
+          "page_number": null,
+          "rrf_score": 0.015384615384615385,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "slip",
+      "question": "How is induction motor slip defined?",
+      "expected_answer": "Slip is synchronous speed minus rotor speed, divided by synchronous speed.",
+      "expected_sections": [
+        "Induction motor slip"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Induction motor slip",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 0.75,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Inductor energy",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "RL time constant",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "diode",
+      "question": "What does a rectifier diode do?",
+      "expected_answer": "A rectifier diode conducts preferentially in one direction and converts AC to pulsating DC.",
+      "expected_sections": [
+        "Rectifier diode"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Rectifier diode",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 1.0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "opamp",
+      "question": "What is the ideal op-amp input impedance?",
+      "expected_answer": "An ideal op-amp has infinite input impedance and draws no input current.",
+      "expected_sections": [
+        "Ideal op-amp"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Ideal op-amp",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 1.0,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Ideal transformer",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0.4,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Sampling theorem",
+          "page_number": null,
+          "rrf_score": 0.015873015873015872,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "sampling",
+      "question": "What sampling frequency is required for a bandlimited signal?",
+      "expected_answer": "Sampling frequency must exceed twice the highest signal frequency for ideal reconstruction.",
+      "expected_sections": [
+        "Sampling theorem"
+      ],
+      "expected_pages": [],
+      "hit": true,
+      "expected_rank": 1,
+      "would_abstain": false,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Sampling theorem",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 0.8,
+          "similarity": 0
+        },
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "Synchronous speed",
+          "page_number": null,
+          "rrf_score": 0.016129032258064516,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "unknown-fee",
+      "question": "What is the university tuition fee for next semester?",
+      "expected_answer": "I could not find this in the syllabus",
+      "expected_sections": [],
+      "expected_pages": [],
+      "hit": null,
+      "expected_rank": null,
+      "would_abstain": true,
+      "retrieved": []
+    },
+    {
+      "id": "unknown-exam",
+      "question": "What calendar date is the final examination scheduled?",
+      "expected_answer": "I could not find this in the syllabus",
+      "expected_sections": [],
+      "expected_pages": [],
+      "hit": null,
+      "expected_rank": null,
+      "would_abstain": true,
+      "retrieved": [
+        {
+          "document_name": "Academic Example Corpus",
+          "section": "RC time constant",
+          "page_number": null,
+          "rrf_score": 0.01639344262295082,
+          "lexical_coverage": 0,
+          "similarity": 0
+        }
+      ]
+    },
+    {
+      "id": "unknown-grade",
+      "question": "What grade did student Rahim receive?",
+      "expected_answer": "I could not find this in the syllabus",
+      "expected_sections": [],
+      "expected_pages": [],
+      "hit": null,
+      "expected_rank": null,
+      "would_abstain": true,
+      "retrieved": []
+    },
+    {
+      "id": "unknown-weather",
+      "question": "What will the weather be in Sylhet tomorrow?",
+      "expected_answer": "I could not find this in the syllabus",
+      "expected_sections": [],
+      "expected_pages": [],
+      "hit": null,
+      "expected_rank": null,
+      "would_abstain": true,
+      "retrieved": []
+    },
+    {
+      "id": "unknown-prereq",
+      "question": "What prerequisites are required for EVAL 999?",
+      "expected_answer": "I could not find this in the syllabus",
+      "expected_sections": [],
+      "expected_pages": [],
+      "hit": null,
+      "expected_rank": null,
+      "would_abstain": true,
+      "retrieved": []
+    }
+  ]
+}

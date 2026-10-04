@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1120" />
+    <title>Offline class routine · SUST EEE</title>
+    <link rel="icon" href="/icons/icon-192.png" />
+  </head>
+  <body>
+    <main class="mx-auto max-w-3xl space-y-5 p-6">
+      <h1>Offline class routine</h1>
+      <p>You are offline. This is the last routine saved on this device, and may be out of date.</p>
+      <p id="saved-at" role="status">Loading saved routine…</p>
+      <div id="routine" class="space-y-3"></div>
+      <a class="inline-block rounded-lg border p-3" href="/schedule">Reconnect to the portal</a>
+    </main>
+    <script type="module" src="/src/offline.ts"></script>
+  </body>
+</html>

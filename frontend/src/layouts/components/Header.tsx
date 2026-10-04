@@ -1,33 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { Bell, LogOut, Menu, Search } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar } from '@/components/shared/Avatar';
 import { ThemeSwitcher } from '@/components/shared/ThemeSwitcher';
-import { api } from '@/lib/axios';
+import { useNotifications, type NotificationRow } from '@/features/notifications/NotificationContext';
+import { pushUrl } from '@/lib/pushUrl';
 import { CommandSearch } from './CommandSearch';
 import { ROLE_LABEL } from '@/layouts/nav';
 
-export interface NotificationRow {
-  id: number;
-  title: string;
-  body: string;
-  is_read: boolean;
-}
+export type { NotificationRow };
 
 export const Header = ({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) => {
   const { user, logout } = useAuth();
   const [searchOpen, setSearchOpen] = useState(false);
 
-  const notifications = useQuery({
-    queryKey: ['notifications'],
-    queryFn: async () => (await api.get<NotificationRow[]>('/notifications')).data,
-    retry: false,
-  });
-
-  const rows = notifications.data ?? [];
-  const unread = rows.filter((n) => !n.is_read).length;
+  const { unread_count: unread } = useNotifications();
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -94,7 +82,7 @@ export const Header = ({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) =>
         >
           <Bell className="h-4 w-4" />
           {unread > 0 && (
-            <span className="absolute -right-1.5 -top-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-bold text-[var(--primary-fg)]">
+            <span aria-live="polite" className="absolute -right-1.5 -top-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-bold text-[var(--primary-fg)]">
               {unread > 99 ? '99+' : unread}
             </span>
           )}
@@ -131,10 +119,13 @@ export const Header = ({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) =>
 
 /** Shared list used by the notifications route. */
 export const NotificationList = ({ rows }: { rows: NotificationRow[] }) => {
+  const { markRead, marking, markError } = useNotifications();
   if (!rows.length) {
     return <p className="px-4 py-8 text-center text-sm text-[var(--text-muted)]">No notifications for your account.</p>;
   }
   return (
+    <div>
+    {markError && <p role="alert" className="p-3 text-[var(--danger)]">Could not mark notifications as read. Try again.</p>}
     <ul className="divide-y divide-[var(--border)]">
       {rows.map((n) => (
         <li key={n.id} className="px-4 py-3">
@@ -148,10 +139,15 @@ export const NotificationList = ({ rows }: { rows: NotificationRow[] }) => {
             <div className="min-w-0">
               <p className="text-sm font-semibold text-[var(--text)]">{n.title}</p>
               <p className="break-words text-sm text-[var(--text-muted)]">{n.body}</p>
+              <div className="mt-2 flex gap-3 text-sm">
+                <Link className="underline" to={pushUrl(n.data_payload?.url, window.location.origin)} onClick={() => markRead(n.id)}>Open</Link>
+                {!n.is_read && <button className="underline" disabled={marking} onClick={() => markRead(n.id)}>Mark as read</button>}
+              </div>
             </div>
           </div>
         </li>
       ))}
     </ul>
+    </div>
   );
 };

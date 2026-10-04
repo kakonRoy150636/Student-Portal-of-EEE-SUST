@@ -21,6 +21,9 @@ services:
     image: redis:7-alpine
     container_name: sust_eee_redis
     restart: always
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "always", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redisdata:/data
     ports:
       - "6380:6379"
 
@@ -161,6 +164,14 @@ services:
   frontend:
     build:
       context: ./frontend
+      args:
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-}
+        VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET:-}
+        VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-}
+        VITE_FIREBASE_VAPID_KEY: ${VITE_FIREBASE_VAPID_KEY:-}
       dockerfile: Dockerfile
     container_name: sust_eee_frontend
     restart: always
@@ -172,3 +183,4 @@ services:
 volumes:
   pgdata:
   miniodata:
+  redisdata:

@@ -4,6 +4,15 @@ COPY package*.json ./
 # Vite 8's native dependencies (including musl builds) are in the lockfile.
 RUN npm ci --include=optional
 COPY . .
+# Firebase web configuration is public and compiled into both app and worker.
+# Pass these build args through Compose; no service-account secret belongs here.
+ARG VITE_FIREBASE_API_KEY
+ARG VITE_FIREBASE_AUTH_DOMAIN
+ARG VITE_FIREBASE_PROJECT_ID
+ARG VITE_FIREBASE_STORAGE_BUCKET
+ARG VITE_FIREBASE_MESSAGING_SENDER_ID
+ARG VITE_FIREBASE_APP_ID
+ARG VITE_FIREBASE_VAPID_KEY
 RUN npm run build
 
 FROM nginx:1.29-alpine3.23

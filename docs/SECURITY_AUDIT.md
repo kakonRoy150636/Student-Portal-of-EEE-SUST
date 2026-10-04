@@ -57,6 +57,11 @@ role check by design. Checks inside services count as authorization checks.
 | PUT | /attendance/sessions/{session_id} | Assigned T or A | Session -> course -> assignment |
 | POST | /notifications/devices/register | ALL | AUTH; caller's device |
 | GET | /notifications | ALL | AUTH; caller's notifications |
+| GET | /notifications/summary | ALL | AUTH; caller's inbox and exact unread total |
+| GET | /notifications/stream | ALL | AUTH; short-lived caller-only SSE, no bearer token in URL |
+| PATCH | /notifications/read-all | ALL | AUTH; caller's inbox only |
+| PATCH | /notifications/{notification_id}/read | ALL | AUTH; caller-owned notification or 404 |
+| DELETE | /notifications/devices/{device_id} | ALL | AUTH; delete only caller-owned token |
 | GET | /notifications/preferences | ALL | AUTH; caller's channel preferences and quiet hours |
 | PUT | /notifications/preferences | ALL | AUTH; replaces caller's preferences only |
 | GET | /resources/search | ALL | AUTH; department-shared resources |

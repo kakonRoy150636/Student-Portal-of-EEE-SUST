@@ -1,4 +1,4 @@
-from datetime import time
+from datetime import time, datetime
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -12,6 +12,8 @@ class NotificationResponse(BaseModel):
     title: str
     body: str
     is_read: bool
+    created_at: datetime
+    data_payload: dict = Field(default_factory=dict)
 
 
 class ChannelPreference(BaseModel):

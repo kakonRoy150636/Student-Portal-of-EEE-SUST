@@ -12,5 +12,5 @@ router = APIRouter(prefix="/ai", tags=["AI Copilot"])
 @router.post("/query", response_model=AIQueryResponse, dependencies=[Depends(limit_ai)])
 async def query_ai(payload: AIQueryRequest, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     service = AIRagService(db)
-    res = await service.answer_academic_query(payload.prompt, payload.course_code)
+    res = await service.answer_academic_query(payload.prompt, payload.course_code, user.id)
     return res

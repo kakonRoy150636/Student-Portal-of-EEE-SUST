@@ -21,6 +21,10 @@ TEMPLATES = {
     "exam_reminder": ("Academic reminder", "An academic event needs your attention. Open the portal for details."),
     "announcement": ("Portal update", "A new update is available. Open the portal for details."),
 }
+NOTIFICATION_URLS = {
+    "class_reminder": "/schedule", "lab_reminder": "/schedule",
+    "exam_reminder": "/schedule", "announcement": "/notifications",
+}
 
 
 def insert_for(db, model):
@@ -123,7 +127,7 @@ class NotificationService:
         if in_app:
             title, body = TEMPLATES[type_]
             notification = Notification(recipient_id=user_id, title=title, body=body,
-                                        data_payload={"type": type_})
+                                        data_payload={"type": type_, "url": NOTIFICATION_URLS[type_]})
             self.db.add(notification)
             await self.db.flush()
             log.notification_id = notification.id

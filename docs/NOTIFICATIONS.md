@@ -91,7 +91,8 @@ flags are honored until the user saves the new per-type preferences.
 
 The Notifications page exposes these controls and reports save errors. Device
 registration is ready for native/web clients supplying an FCM token; automatic
-browser token acquisition/service-worker provisioning remains separate setup.
+browser token acquisition and service-worker provisioning are now implemented
+by the PWA. See [PWA setup](PWA.md) for Firebase web configuration and installation.
 
 ## Idempotency and failure behavior
 

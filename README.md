@@ -44,10 +44,12 @@ The student home combines a campus-led visual introduction with live academic me
 | Projects | Capstone lifecycle, supervisor workflows, and GitHub integration |
 | Career | Opportunities, JSON-Resume profiles, and public portfolios |
 | Notifications | Firebase Cloud Messaging with Celery worker and Beat scheduling |
-| AI assistant | Google Gemini with pgvector and full-text hybrid retrieval |
+| AI assistant | Cited Gemini answers, pgvector/full-text RRF retrieval, safe abstention and Redis quota/cost caps |
 | Alumni portal | Alumni verification, directory search, visibility controls, events, mentorship, scholarships, news, and gallery foundations |
 
 ## Dashboard Experience
+
+AI setup, ingestion, usage limits and the 25-question retrieval evaluation: [docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md).
 
 The signed-in frontend uses an academic editorial direction rather than a generic admin template:
 
@@ -301,6 +303,10 @@ The minute scanner, five-minute digest, FCM delivery retries and user preference
 are documented in [Notifications](docs/NOTIFICATIONS.md). Apply `alembic upgrade
 head` before starting the updated API/workers. Notification preferences are
 available on the Notifications page, with quiet hours interpreted in Asia/Dhaka.
+
+The frontend is an installable PWA with offline class routine, web push opt-in,
+and a live notification center. See [PWA setup and audit](docs/PWA.md) for public
+Firebase build configuration, iPhone installation steps and verification.
 
 
 #### Critical integration suite: real PostgreSQL + Redis

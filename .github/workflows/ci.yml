@@ -36,7 +36,7 @@ jobs:
           python -m pip install --upgrade pip setuptools
           python -m pip install '.[dev,ci]'
       - name: Ruff
-        run: python -m ruff check app tests alembic
+        run: python -m ruff check app tests alembic evals
       - name: Mypy
         if: ${{ !cancelled() }}
         run: python -m mypy app
@@ -105,6 +105,8 @@ jobs:
           --cov=app --cov-branch
           --cov-report=term-missing --cov-report=xml:coverage.xml
           --cov-report=html:htmlcov --junitxml=junit.xml
+      - name: Sample corpus retrieval evaluation (25 questions)
+        run: python -m evals.retrieval_eval --fixture --mode fixture-hybrid --output retrieval-eval.json
       - name: Upload test and coverage reports
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
@@ -114,6 +116,7 @@ jobs:
             backend/junit.xml
             backend/coverage.xml
             backend/htmlcov/
+            backend/retrieval-eval.json
           retention-days: 14
 
   frontend:
@@ -138,9 +141,18 @@ jobs:
       - name: TypeScript
         if: ${{ !cancelled() }}
         run: npm run typecheck
+      - name: Frontend lifecycle and offline-storage tests
+        if: ${{ !cancelled() }}
+        run: npm test
       - name: Production build
         if: ${{ !cancelled() }}
         run: npm run build
+      - name: Install Chromium for PWA browser checks
+        if: ${{ !cancelled() }}
+        run: npx playwright install --with-deps chromium
+      - name: PWA, notification-center and academic-assistant browser checks
+        if: ${{ !cancelled() }}
+        run: npm run test:e2e
       - name: Audit all npm dependencies (including build tools)
         if: ${{ !cancelled() }}
         run: npm audit --audit-level=high --json > npm-audit.json

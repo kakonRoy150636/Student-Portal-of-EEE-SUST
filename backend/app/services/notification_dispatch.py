@@ -13,7 +13,7 @@ from app.models.notification import (
     NotificationPreference, UserDevice,
 )
 from app.models.user import User
-from app.services.notification_service import TEMPLATES, channels, next_push_time, utcnow
+from app.services.notification_service import TEMPLATES, NOTIFICATION_URLS, channels, next_push_time, utcnow
 
 MAX_ATTEMPTS = 6
 UNCERTAIN_AFTER = timedelta(minutes=5)
@@ -73,7 +73,7 @@ async def deliver_batch(sessions, batch_id, now=None, sender=None):
             title, body = "Portal summary", f"You have {count} new {type_.replace('_', ' ')} updates. Open the portal for details."
         outcome, error = "sent", None
         try:
-            await asyncio.to_thread(sender, token, title, body, data={"type": type_, "notification_id": str(batch_id)},
+            await asyncio.to_thread(sender, token, title, body, data={"type": type_, "notification_id": str(batch_id), "url": NOTIFICATION_URLS[type_]},
                                     priority="high" if priority == "high" else "normal")
         except InvalidDeviceToken:
             outcome, error = "invalid", "unregistered"

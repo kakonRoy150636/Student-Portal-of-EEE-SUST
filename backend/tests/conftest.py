@@ -243,6 +243,7 @@ async def pg_session_factory():
         # GiST UUID/integer operator classes live in public; the CI database
         # starts empty and must not depend on a developer's installed extensions.
         await conn.execute(text('CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA public'))
+        await conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public'))
         await conn.run_sync(Base.metadata.create_all)
     try:
         yield async_sessionmaker(bind=pg_engine, class_=AsyncSession, expire_on_commit=False)

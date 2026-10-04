@@ -23,3 +23,5 @@ backend/pip-audit.json
 backend/coverage.xml
 backend/junit.xml
 frontend/npm-audit.json
+frontend/test-results/
+frontend/playwright-report/

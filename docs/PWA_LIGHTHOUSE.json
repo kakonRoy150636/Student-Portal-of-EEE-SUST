@@ -1,0 +1,20 @@
+{
+  "lighthouseVersion": "11.7.1",
+  "fetchTime": "2026-10-04T05:59:50.106Z",
+  "requestedUrl": "http://127.0.0.1:4174/auth/login",
+  "environment": "Local production frontend Docker image served by nginx, system Chrome headless",
+  "category": "pwa",
+  "score": 100,
+  "automatedAudits": {
+    "installable-manifest": 100,
+    "splash-screen": 100,
+    "themed-omnibox": 100,
+    "content-width": 100,
+    "viewport": 100,
+    "maskable-icon": 100
+  },
+  "manualAudits": ["pwa-cross-browser", "pwa-page-transitions", "pwa-each-page-has-url"],
+  "runtimeError": null,
+  "notes": "Newer Lighthouse releases removed the PWA category. Live Firebase delivery and physical iOS installation were not verified. Offline routine and notification-center behavior were separately tested in Playwright.",
+  "fullReports": "/tmp/opencode/portal-pwa-nginx-lighthouse.report.{json,html}"
+}

@@ -2,6 +2,9 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import type { AxiosError } from 'axios';
 import { User, UserRole, LoginCredentials } from '@/types/auth';
 import { api, setAccessToken, requestNewAccessToken } from '@/lib/axios';
+import { useQueryClient } from '@tanstack/react-query';
+import { disablePushDevice } from '@/lib/pushSession';
+import { clearRoutine, selectRoutineOwner } from '@/lib/offlineRoutine';
 
 interface AuthContextType {
   user: User | null;
@@ -15,6 +18,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -33,6 +37,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           await requestNewAccessToken();
           if (cancelled) return;
           const { data } = await api.get('/auth/me');
+          await selectRoutineOwner(data.id).catch(() => {});
           if (!cancelled) setUser(data);
           return;
         } catch (error) {
@@ -40,6 +45,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const status = (error as AxiosError).response?.status;
           if (status === 401 || status === 403) {
             setAccessToken(null);
+            void clearRoutine().catch(() => {});
+            void disablePushDevice(false).catch(() => {});
             return;
           }
           if (attempt < BOOTSTRAP_ATTEMPTS - 1) {
@@ -60,22 +67,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Fired by the axios interceptor when refreshing fails, so a dead session
   // drops the cached user instead of leaving a stale dashboard on screen.
   useEffect(() => {
-    const onExpired = () => setUser(null);
+    const onExpired = () => {
+      setUser(null); queryClient.clear();
+      void clearRoutine().catch(() => {});
+      void disablePushDevice(false).catch(() => {});
+    };
     window.addEventListener('auth:session-expired', onExpired);
     return () => window.removeEventListener('auth:session-expired', onExpired);
-  }, []);
+  }, [queryClient]);
 
   const login = async (creds: LoginCredentials) => {
     const { data } = await api.post('/auth/login', creds);
     const token = data.tokens.access_token;
     setAccessToken(token);
+    queryClient.clear();
+    await selectRoutineOwner(data.user.id).catch(() => {});
     setUser(data.user);
   };
 
   const logout = async () => {
-    try { await api.post('/auth/logout'); } finally {
+    try {
+      await disablePushDevice().catch(() => {});
+      await api.post('/auth/logout');
+    } finally {
       setAccessToken(null);
       setUser(null);
+      queryClient.clear();
+      await clearRoutine().catch(() => {});
     }
   };
 

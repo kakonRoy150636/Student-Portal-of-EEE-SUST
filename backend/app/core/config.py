@@ -1,5 +1,6 @@
 from typing import List
 from pydantic_settings import BaseSettings
+from pydantic import Field
 
 class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
@@ -38,6 +39,22 @@ class Settings(BaseSettings):
     BOOTSTRAP_ADMIN_IDENTIFIER: str = "admin"
 
     GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash-lite"
+    GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-001"
+    AI_DAILY_USER_QUOTA: int = Field(default=20, ge=1)
+    AI_GLOBAL_DAILY_CAP_MICRO_USD: int = Field(default=1_000_000, ge=1)
+    # Conservative price ceilings in micro-USD per million tokens, not a
+    # statement of Google's current pricing. Operators may raise these ceilings.
+    AI_INPUT_MICRO_USD_PER_MILLION: int = Field(default=1_000_000, ge=1)
+    AI_OUTPUT_MICRO_USD_PER_MILLION: int = Field(default=5_000_000, ge=1)
+    AI_EMBED_MICRO_USD_PER_MILLION: int = Field(default=150_000, ge=1)
+    AI_MAX_OUTPUT_TOKENS: int = Field(default=768, ge=64, le=2048)
+    AI_RRF_LEXICAL_WEIGHT: float = Field(default=1.0, ge=0)
+    AI_RRF_VECTOR_WEIGHT: float = Field(default=1.0, ge=0)
+    AI_RRF_K: int = Field(default=60, ge=1)
+    AI_RETRIEVAL_TOP_K: int = Field(default=5, ge=1, le=8)
+    AI_MIN_LEXICAL_COVERAGE: float = Field(default=0.6, ge=0, le=1)
+    AI_MIN_VECTOR_SIMILARITY: float = Field(default=0.8, ge=0, le=1)
     GITHUB_WEBHOOK_SECRET: str = ""
     FIREBASE_CREDENTIALS_PATH: str = "./firebase-service-account.json"
 
