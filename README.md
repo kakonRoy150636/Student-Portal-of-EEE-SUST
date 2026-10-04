@@ -45,9 +45,11 @@ The student home combines a campus-led visual introduction with live academic me
 | Career | Opportunities, JSON-Resume profiles, and public portfolios |
 | Notifications | Firebase Cloud Messaging with Celery worker and Beat scheduling |
 | AI assistant | Cited Gemini answers, pgvector/full-text RRF retrieval, safe abstention and Redis quota/cost caps |
-| Alumni portal | Alumni verification, directory search, visibility controls, events, mentorship, scholarships, news, and gallery foundations |
+| Alumni portal | Standalone batch-aware network, career timelines, privacy-safe directory search, CSV import, verification, events, mentorship, scholarships, news, and gallery foundations |
 
 ## Dashboard Experience
+
+The standalone alumni network is documented in [docs/ALUMNI.md](docs/ALUMNI.md), including its batch, directory, profile, career timeline, privacy, and CSV import APIs.
 
 AI setup, ingestion, usage limits and the 25-question retrieval evaluation: [docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md).
 
