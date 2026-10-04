@@ -1,6 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "btree_gist";
 CREATE EXTENSION IF NOT EXISTS "vector";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 -- Enums
 CREATE TYPE user_role AS ENUM ('super_admin', 'teacher', 'cr', 'student', 'lab_assistant', 'alumni');
@@ -476,8 +477,15 @@ CREATE TABLE alumni_profiles (
     industry VARCHAR(100),
     linkedin_url VARCHAR(255),
     verified_by_admin BOOLEAN NOT NULL DEFAULT FALSE,
+    is_verified BOOLEAN NOT NULL DEFAULT FALSE,
     membership_status VARCHAR(20) NOT NULL DEFAULT 'pending',
     is_visible BOOLEAN NOT NULL DEFAULT FALSE,
+    current_city VARCHAR(120),
+    current_country VARCHAR(120),
+    bio VARCHAR(2000),
+    phone VARCHAR(30),
+    email_visible BOOLEAN NOT NULL DEFAULT FALSE,
+    phone_visible BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     search_tsv TSVECTOR GENERATED ALWAYS AS (
@@ -491,6 +499,7 @@ CREATE TABLE alumni_profiles (
         )
     ) STORED,
     CONSTRAINT uq_alumni_profiles_user UNIQUE (user_id),
+    CONSTRAINT ck_alumni_profiles_batch_year CHECK (batch_year >= 2010),
     CONSTRAINT ck_alumni_profiles_membership
         CHECK (membership_status IN ('pending', 'active', 'expired', 'rejected'))
 );
@@ -501,6 +510,30 @@ CREATE INDEX ix_alumni_profiles_membership_status ON alumni_profiles (membership
 CREATE INDEX ix_alumni_profiles_is_visible ON alumni_profiles (is_visible);
 CREATE INDEX ix_alumni_profiles_batch_industry ON alumni_profiles (batch_year, industry);
 CREATE INDEX ix_alumni_profiles_search ON alumni_profiles USING GIN (search_tsv);
+CREATE INDEX ix_alumni_profiles_current_country ON alumni_profiles (current_country);
+CREATE INDEX ix_alumni_profiles_is_verified ON alumni_profiles (is_verified);
+CREATE INDEX ix_users_full_name_trgm ON users USING GIN (full_name gin_trgm_ops);
+
+CREATE TABLE alumni_employments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    alumni_id UUID NOT NULL REFERENCES alumni_profiles(id) ON DELETE CASCADE,
+    organization VARCHAR(255) NOT NULL,
+    position VARCHAR(255) NOT NULL,
+    sector VARCHAR(30) NOT NULL DEFAULT 'other',
+    city VARCHAR(120),
+    country VARCHAR(120),
+    start_date DATE,
+    end_date DATE,
+    is_current BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_alumni_employments_sector CHECK (sector IN ('industry', 'academia', 'government', 'startup', 'higher_study', 'other')),
+    CONSTRAINT ck_alumni_employments_dates CHECK (end_date IS NULL OR start_date IS NULL OR end_date >= start_date)
+);
+CREATE INDEX ix_alumni_employments_alumni ON alumni_employments (alumni_id);
+CREATE INDEX ix_alumni_employments_country_sector ON alumni_employments (country, sector);
+CREATE INDEX ix_alumni_employments_organization_trgm ON alumni_employments USING GIN (organization gin_trgm_ops);
+CREATE UNIQUE INDEX uq_alumni_employments_one_current ON alumni_employments (alumni_id) WHERE is_current;
 
 CREATE TABLE events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
