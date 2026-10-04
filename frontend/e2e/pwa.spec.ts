@@ -43,6 +43,16 @@ test('manifest, installed worker and routine support offline navigation and logo
   await expect(page.getByText('EEE101', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(page).toHaveURL(/\/auth\/login/);
+  await expect.poll(() => page.evaluate(() => new Promise<boolean>((resolve) => {
+    const open = indexedDB.open('portal-offline', 1);
+    open.onsuccess = () => {
+      const db = open.result;
+      const request = db.transaction('routine').objectStore('routine').get('last');
+      request.onsuccess = () => { resolve(request.result === undefined); db.close(); };
+      request.onerror = () => { resolve(false); db.close(); };
+    };
+    open.onerror = () => resolve(false);
+  }))).toBe(true);
   await page.goto('/offline.html');
   await expect(page.getByText('No routine saved yet. Open Class routine while online first.')).toBeVisible();
 });
