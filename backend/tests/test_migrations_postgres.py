@@ -19,7 +19,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.skipif(not ADMIN_URL, reason="Req
 BACKEND = Path(__file__).resolve().parents[1]
 SCHEMA = BACKEND.parent / "database" / "schema.sql"
 BASELINE = "20260911_0001"
-HEAD = "20261004_0008"
+HEAD = "20261005_0009"
 
 
 async def alembic(url, *args, succeeds=True):

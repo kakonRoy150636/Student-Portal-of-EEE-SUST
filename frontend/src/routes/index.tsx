@@ -20,7 +20,10 @@ const CareerPortalPage = lazy(() => import('@/features/career/pages/CareerPortal
 const AIAssistantPage = lazy(() => import('@/features/ai-assistant/pages/AIAssistantPage'));
 const AdminPanelPage = lazy(() => import('@/features/admin/pages/AdminPanelPage'));
 const NotificationsPage = lazy(() => import('@/features/notifications/pages/NotificationsPage'));
-const AlumniDirectoryPage = lazy(() => import('@/features/alumni/pages/AlumniDirectoryPage'));
+const AlumniSectionPage = lazy(() => import('@/features/alumni/pages/AlumniSectionPage'));
+const AlumniProfilePage = lazy(() => import('@/features/alumni/pages/AlumniProfilePage'));
+const AlumniEditPage = lazy(() => import('@/features/alumni/pages/AlumniEditPage'));
+const AlumniImportPage = lazy(() => import('@/features/alumni/pages/AlumniImportPage'));
 const AlumniEventsPage = lazy(() => import('@/features/alumni/pages/AlumniEventsPage'));
 
 const Fallback = RouteFallback;
@@ -53,8 +56,12 @@ export const router = createBrowserRouter([
       { path: 'ai', element: <Suspense fallback={<Fallback />}><AIAssistantPage /></Suspense> },
       { path: 'admin', element: <ProtectedRoute roles={[UserRole.SUPER_ADMIN]}><Suspense fallback={<Fallback />}><AdminPanelPage /></Suspense></ProtectedRoute> },
       { path: 'notifications', element: <Suspense fallback={<Fallback />}><NotificationsPage /></Suspense> },
-      { path: 'alumni/directory', element: <ProtectedRoute roles={[UserRole.ALUMNI, UserRole.SUPER_ADMIN]}><Suspense fallback={<Fallback />}><AlumniDirectoryPage /></Suspense></ProtectedRoute> },
-      { path: 'alumni/events', element: <ProtectedRoute roles={[UserRole.ALUMNI, UserRole.SUPER_ADMIN]}><Suspense fallback={<Fallback />}><AlumniEventsPage /></Suspense></ProtectedRoute> }
+      { path: 'alumni', element: <Suspense fallback={<Fallback />}><AlumniSectionPage /></Suspense> },
+      { path: 'alumni/directory', element: <Suspense fallback={<Fallback />}><AlumniSectionPage /></Suspense> },
+      { path: 'alumni/profile/:id', element: <Suspense fallback={<Fallback />}><AlumniProfilePage /></Suspense> },
+      { path: 'alumni/me/edit', element: <ProtectedRoute roles={[UserRole.ALUMNI]}><Suspense fallback={<Fallback />}><AlumniEditPage /></Suspense></ProtectedRoute> },
+      { path: 'alumni/events', element: <ProtectedRoute roles={[UserRole.ALUMNI, UserRole.SUPER_ADMIN]}><Suspense fallback={<Fallback />}><AlumniEventsPage /></Suspense></ProtectedRoute> },
+      { path: 'admin/alumni/import', element: <ProtectedRoute roles={[UserRole.SUPER_ADMIN]}><Suspense fallback={<Fallback />}><AlumniImportPage /></Suspense></ProtectedRoute> }
     ]
   },
   { path: '*', element: <Navigate to="/dashboard" replace /> }

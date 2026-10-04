@@ -5,7 +5,7 @@ return a response model. No ORM access and no business rules here.
 """
 import uuid
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Path, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import RequireRole, get_current_user
@@ -74,7 +74,7 @@ async def alumni_batches(db: AsyncSession = Depends(get_db)):
 
 @router.get("/batches/{year}/summary", response_model=AlumniBatchSummaryResponse)
 async def alumni_batch_summary(
-    year: int = Query(..., ge=2010), db: AsyncSession = Depends(get_db),
+    year: int = Path(..., ge=2010), db: AsyncSession = Depends(get_db),
 ):
     return await AlumniService(db).batch_summary(year)
 
@@ -105,7 +105,7 @@ async def search_directory(
     user: User = Depends(get_current_user),
 ):
     """Visible, verified alumni only. Hidden or pending claims never leak."""
-    return await AlumniService(db).search_directory(q=q, batch_year=batch_year, industry=industry)
+    return await AlumniService(db).search_directory(q=q, batch_year=batch_year, industry=industry, viewer_id=user.id)
 
 
 @router.get("/directory/{profile_id}", response_model=AlumniProfileResponse)
@@ -114,7 +114,7 @@ async def get_directory_profile(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return await AlumniService(db).get_directory_profile(profile_id)
+    return await AlumniService(db).get_directory_profile(profile_id, viewer_id=user.id)
 
 
 @router.get("/me", response_model=AlumniProfileResponse | None)

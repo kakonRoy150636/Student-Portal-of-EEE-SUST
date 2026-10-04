@@ -320,6 +320,7 @@ class AlumniService:
         batch_year: int | None = None,
         industry: str | None = None,
         limit: int = 50,
+        viewer_id: uuid.UUID | None = None,
     ) -> list[AlumniProfileResponse]:
         try:
             rows = await self.repo.search_directory(
@@ -332,7 +333,7 @@ class AlumniService:
                 q=q, batch_year=batch_year, industry=industry, visible_only=True,
                 membership_status=MembershipStatus.ACTIVE.value, limit=min(limit, 100),
             )
-        return [AlumniProfileResponse.model_validate(row) for row in rows]
+        return [self._profile_response(row, viewer_id=viewer_id) for row in rows]
 
     async def list_batches(self) -> list[AlumniBatchResponse]:
         current_year = date.today().year
@@ -550,7 +551,7 @@ class AlumniService:
             employments=[AlumniEmploymentResponse.model_validate(row) for row in profile.employments],
         )
 
-    async def get_directory_profile(self, profile_id: uuid.UUID) -> AlumniProfileResponse:
+    async def get_directory_profile(self, profile_id: uuid.UUID, viewer_id: uuid.UUID | None = None) -> AlumniProfileResponse:
         profile = await self.repo.get_profile(profile_id)
         if (
             not profile
@@ -558,7 +559,7 @@ class AlumniService:
             or profile.membership_status != MembershipStatus.ACTIVE.value
         ):
             raise NotFoundException("Alumni profile not found.")
-        return AlumniProfileResponse.model_validate(profile)
+        return self._profile_response(profile, viewer_id=viewer_id)
 
     async def list_events(self, user: User | None = None) -> list[EventResponse]:
         published_only = not (user and user.role == UserRole.SUPER_ADMIN)
