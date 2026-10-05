@@ -17,8 +17,8 @@ from app.schemas.auth import (
 )
 from app.models.user import User, UserRole, StudentProfile, FacultyProfile
 from app.models.auth import RefreshToken
-from app.models.academic import CourseEnrollment, CourseOffering
 from app.core.exceptions import DomainException
+from app.services.course_offering_service import CourseOfferingService
 
 
 def _is_expired(expires_at: datetime) -> bool:
@@ -181,12 +181,6 @@ class AuthService:
         offering_ids = [item.course_offering_id for item in dto.course_selections]
         if len(offering_ids) != len(set(offering_ids)):
             raise DomainException("Duplicate course selections are not allowed.", status_code=422)
-        if offering_ids:
-            existing = set((await self.db.scalars(
-                select(CourseOffering.id).where(CourseOffering.id.in_(offering_ids))
-            )).all())
-            if existing != set(offering_ids):
-                raise DomainException("One or more course offerings do not exist.", status_code=422)
         if await self.repo.get_by_email(dto.email):
             raise ResourceConflictException("Email already in use.")
         if await self.repo.get_by_identifier(dto.identifier):
@@ -206,19 +200,28 @@ class AuthService:
             role=role,
             is_active=role == UserRole.STUDENT,  # CR and ER require admin approval
         )
-        await self.repo.create(user)
-        self.db.add(StudentProfile(
-            user_id=user.id,
-            session_year=dto.session_year,
-            current_term=dto.current_term,
-        ))
-        for selection in dto.course_selections:
-            self.db.add(CourseEnrollment(
-                course_offering_id=selection.course_offering_id,
-                student_id=user.id,
-                status=selection.enrollment_type,
+        try:
+            await self.repo.create(user)
+            self.db.add(StudentProfile(
+                user_id=user.id,
+                session_year=dto.session_year,
+                current_term=dto.current_term,
             ))
-        await self.db.commit()
+            offering_service = CourseOfferingService(self.db)
+            await offering_service.enroll_many(
+                user.id,
+                [
+                    (selection.course_offering_id, selection.enrollment_type)
+                    for selection in dto.course_selections
+                ],
+                commit=False,
+                registration=True,
+            )
+            await self.db.commit()
+            offering_service.publish_pending_notifications()
+        except Exception:
+            await self.db.rollback()
+            raise
         requires_approval = role in (UserRole.CR, UserRole.LAB_ASSISTANT)
         if role == UserRole.CR:
             message = "Registered. Awaiting admin approval before you can log in as CR."

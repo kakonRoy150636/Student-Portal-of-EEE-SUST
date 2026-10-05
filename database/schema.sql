@@ -89,8 +89,35 @@ CREATE TABLE course_offerings (
     course_id UUID NOT NULL REFERENCES courses(id) ON DELETE RESTRICT,
     semester_id INT NOT NULL REFERENCES semesters(id) ON DELETE CASCADE,
     coordinator_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    publication_status VARCHAR(20) NOT NULL DEFAULT 'draft',
+    published_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    published_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_course_offerings_publication_status CHECK (publication_status IN ('draft', 'published')),
     UNIQUE(course_id, semester_id)
 );
+CREATE INDEX ix_course_offerings_semester_publication
+    ON course_offerings (semester_id, publication_status);
+
+CREATE TABLE teacher_assignment_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_offering_id UUID NOT NULL REFERENCES course_offerings(id) ON DELETE CASCADE,
+    teacher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    decided_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    decided_at TIMESTAMPTZ,
+    rejection_reason VARCHAR(1000),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_teacher_assignment_requests_offering_teacher UNIQUE (course_offering_id, teacher_id),
+    CONSTRAINT ck_teacher_assignment_requests_status CHECK (status IN ('pending', 'approved', 'rejected'))
+);
+CREATE INDEX ix_teacher_assignment_requests_status_created
+    ON teacher_assignment_requests (status, created_at);
+CREATE INDEX ix_teacher_assignment_requests_teacher
+    ON teacher_assignment_requests (teacher_id);
 
 CREATE TABLE course_enrollments (
     id BIGSERIAL PRIMARY KEY,
@@ -99,8 +126,12 @@ CREATE TABLE course_enrollments (
     status VARCHAR(20) NOT NULL DEFAULT 'enrolled',
     advisor_approved BOOLEAN NOT NULL DEFAULT FALSE,
     enrolled_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    dropped_at TIMESTAMPTZ,
+    CONSTRAINT ck_course_enrollments_status CHECK (status IN ('enrolled', 'main', 'improvement', 'drop')),
     UNIQUE(course_offering_id, student_id)
 );
+CREATE INDEX ix_course_enrollments_student_status ON course_enrollments (student_id, status);
 CREATE INDEX ix_course_enrollments_notification_recipients
     ON course_enrollments (course_offering_id, student_id)
     WHERE status IN ('enrolled', 'main', 'improvement');
