@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
-    auth, users, courses, schedules, rooms, attendance,
+    auth, users, courses, course_offerings, schedules, rooms, attendance,
     notifications, resources, labs, projects, career, ai, alumni, dashboard, webhooks
 )
 
@@ -8,6 +8,7 @@ api_router = APIRouter()
 api_router.include_router(auth.router)
 api_router.include_router(users.router)
 api_router.include_router(courses.router)
+api_router.include_router(course_offerings.router)
 api_router.include_router(schedules.router)
 api_router.include_router(rooms.router)
 api_router.include_router(attendance.router)

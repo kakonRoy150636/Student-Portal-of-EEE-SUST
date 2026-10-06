@@ -20,10 +20,19 @@ TEMPLATES = {
     "lab_reminder": ("Lab reminder", "A lab activity needs your attention. Open the portal for details."),
     "exam_reminder": ("Academic reminder", "An academic event needs your attention. Open the portal for details."),
     "announcement": ("Portal update", "A new update is available. Open the portal for details."),
+    "course_assignment": (
+        "Course assignment update",
+        "A course assignment update is available. Open the portal for details.",
+    ),
+    "course_enrollment": (
+        "Course enrollment update",
+        "Your course enrollment was updated. Open the portal for details.",
+    ),
 }
 NOTIFICATION_URLS = {
     "class_reminder": "/schedule", "lab_reminder": "/schedule",
     "exam_reminder": "/schedule", "announcement": "/notifications",
+    "course_assignment": "/notifications", "course_enrollment": "/notifications",
 }
 
 
@@ -33,6 +42,13 @@ def insert_for(db, model):
 
 def utcnow():
     return datetime.now(timezone.utc)
+
+
+def as_utc(value: datetime) -> datetime:
+    """Normalize Postgres-aware and SQLite-naive timestamps for comparisons."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def channels(pref: NotificationPreference | None, type_: str) -> tuple[bool, bool]:
@@ -140,7 +156,7 @@ class NotificationService:
     async def make_batch(self, logs, now):
         first = logs[0]
         batch = NotificationBatch(user_id=first.user_id, type=first.type, priority=first.priority,
-                                  due_at=max(now, max(row.due_at for row in logs)))
+                                  due_at=max(as_utc(now), max(as_utc(row.due_at) for row in logs)))
         self.db.add(batch)
         await self.db.flush()
         devices = list((await self.db.scalars(select(DeviceToken).where(DeviceToken.user_id == first.user_id))).all())

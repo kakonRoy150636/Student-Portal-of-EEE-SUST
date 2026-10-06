@@ -35,7 +35,8 @@ create_notification.delay(
 )
 ```
 
-Allowed types: `class_reminder`, `lab_reminder`, `exam_reminder`, `announcement`.
+Allowed types: `class_reminder`, `lab_reminder`, `exam_reminder`, `announcement`,
+`course_assignment`, `course_enrollment`.
 There is deliberately no arbitrary title/body/data argument. The event UUID
 must remain stable across producer retries. Separate event occurrences need
 different UUIDs.
@@ -56,6 +57,17 @@ ID + local occurrence date: duplicate scans produce one log, while next week's
 class produces a new log. No grades, student names, course titles or room details
 are included in the message. Generic messages remain accurate after quiet-hour
 deferral. Inactive users and dropped enrollments are excluded.
+
+Course workflow producers use the same durable outbox:
+
+- approving a teacher assignment enqueues one `course_assignment` event per
+  active student and CR;
+- enrolling or reselecting enqueues one `course_enrollment` event for the
+  student and each active teacher assigned to the offering;
+- event IDs are deterministic from the assignment request or enrollment
+  transition, so retries cannot create duplicate inbox rows or push batches;
+- these notifications use the safe `/notifications` internal URL and contain
+  no course names, identifiers, grades or client-supplied text.
 
 UTC-aware timestamps are stored; Celery's timezone and scheduled wall-clock
 logic use Asia/Dhaka. A minute outbox recovery task republishes due pending

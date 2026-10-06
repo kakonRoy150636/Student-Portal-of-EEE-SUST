@@ -1,6 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "btree_gist";
 CREATE EXTENSION IF NOT EXISTS "vector";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 -- Enums
 CREATE TYPE user_role AS ENUM ('super_admin', 'teacher', 'cr', 'student', 'lab_assistant', 'alumni');
@@ -88,8 +89,35 @@ CREATE TABLE course_offerings (
     course_id UUID NOT NULL REFERENCES courses(id) ON DELETE RESTRICT,
     semester_id INT NOT NULL REFERENCES semesters(id) ON DELETE CASCADE,
     coordinator_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    publication_status VARCHAR(20) NOT NULL DEFAULT 'draft',
+    published_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    published_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_course_offerings_publication_status CHECK (publication_status IN ('draft', 'published')),
     UNIQUE(course_id, semester_id)
 );
+CREATE INDEX ix_course_offerings_semester_publication
+    ON course_offerings (semester_id, publication_status);
+
+CREATE TABLE teacher_assignment_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_offering_id UUID NOT NULL REFERENCES course_offerings(id) ON DELETE CASCADE,
+    teacher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    decided_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    decided_at TIMESTAMPTZ,
+    rejection_reason VARCHAR(1000),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_teacher_assignment_requests_offering_teacher UNIQUE (course_offering_id, teacher_id),
+    CONSTRAINT ck_teacher_assignment_requests_status CHECK (status IN ('pending', 'approved', 'rejected'))
+);
+CREATE INDEX ix_teacher_assignment_requests_status_created
+    ON teacher_assignment_requests (status, created_at);
+CREATE INDEX ix_teacher_assignment_requests_teacher
+    ON teacher_assignment_requests (teacher_id);
 
 CREATE TABLE course_enrollments (
     id BIGSERIAL PRIMARY KEY,
@@ -98,8 +126,12 @@ CREATE TABLE course_enrollments (
     status VARCHAR(20) NOT NULL DEFAULT 'enrolled',
     advisor_approved BOOLEAN NOT NULL DEFAULT FALSE,
     enrolled_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    dropped_at TIMESTAMPTZ,
+    CONSTRAINT ck_course_enrollments_status CHECK (status IN ('enrolled', 'main', 'improvement', 'drop')),
     UNIQUE(course_offering_id, student_id)
 );
+CREATE INDEX ix_course_enrollments_student_status ON course_enrollments (student_id, status);
 CREATE INDEX ix_course_enrollments_notification_recipients
     ON course_enrollments (course_offering_id, student_id)
     WHERE status IN ('enrolled', 'main', 'improvement');
@@ -476,8 +508,15 @@ CREATE TABLE alumni_profiles (
     industry VARCHAR(100),
     linkedin_url VARCHAR(255),
     verified_by_admin BOOLEAN NOT NULL DEFAULT FALSE,
+    is_verified BOOLEAN NOT NULL DEFAULT FALSE,
     membership_status VARCHAR(20) NOT NULL DEFAULT 'pending',
     is_visible BOOLEAN NOT NULL DEFAULT FALSE,
+    current_city VARCHAR(120),
+    current_country VARCHAR(120),
+    bio VARCHAR(2000),
+    phone VARCHAR(30),
+    email_visible BOOLEAN NOT NULL DEFAULT FALSE,
+    phone_visible BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     search_tsv TSVECTOR GENERATED ALWAYS AS (
@@ -491,6 +530,7 @@ CREATE TABLE alumni_profiles (
         )
     ) STORED,
     CONSTRAINT uq_alumni_profiles_user UNIQUE (user_id),
+    CONSTRAINT ck_alumni_profiles_batch_year CHECK (batch_year >= 2010),
     CONSTRAINT ck_alumni_profiles_membership
         CHECK (membership_status IN ('pending', 'active', 'expired', 'rejected'))
 );
@@ -501,6 +541,30 @@ CREATE INDEX ix_alumni_profiles_membership_status ON alumni_profiles (membership
 CREATE INDEX ix_alumni_profiles_is_visible ON alumni_profiles (is_visible);
 CREATE INDEX ix_alumni_profiles_batch_industry ON alumni_profiles (batch_year, industry);
 CREATE INDEX ix_alumni_profiles_search ON alumni_profiles USING GIN (search_tsv);
+CREATE INDEX ix_alumni_profiles_current_country ON alumni_profiles (current_country);
+CREATE INDEX ix_alumni_profiles_is_verified ON alumni_profiles (is_verified);
+CREATE INDEX ix_users_full_name_trgm ON users USING GIN (full_name gin_trgm_ops);
+
+CREATE TABLE alumni_employments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    alumni_id UUID NOT NULL REFERENCES alumni_profiles(id) ON DELETE CASCADE,
+    organization VARCHAR(255) NOT NULL,
+    position VARCHAR(255) NOT NULL,
+    sector VARCHAR(30) NOT NULL DEFAULT 'other',
+    city VARCHAR(120),
+    country VARCHAR(120),
+    start_date DATE,
+    end_date DATE,
+    is_current BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_alumni_employments_sector CHECK (sector IN ('industry', 'academia', 'government', 'startup', 'higher_study', 'other')),
+    CONSTRAINT ck_alumni_employments_dates CHECK (end_date IS NULL OR start_date IS NULL OR end_date >= start_date)
+);
+CREATE INDEX ix_alumni_employments_alumni ON alumni_employments (alumni_id);
+CREATE INDEX ix_alumni_employments_country_sector ON alumni_employments (country, sector);
+CREATE INDEX ix_alumni_employments_organization_trgm ON alumni_employments USING GIN (organization gin_trgm_ops);
+CREATE UNIQUE INDEX uq_alumni_employments_one_current ON alumni_employments (alumni_id) WHERE is_current;
 
 CREATE TABLE events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -8,17 +8,29 @@ import { Input } from '@/components/ui/input';
 const labels = {
   class_reminder: 'Class reminders', lab_reminder: 'Lab reminders',
   exam_reminder: 'Academic reminders', announcement: 'Announcements',
+  course_assignment: 'Course assignment updates', course_enrollment: 'Course enrollment updates',
 };
 type NotificationType = keyof typeof labels;
 type Preferences = {
-  per_type: Record<NotificationType, { push: boolean; in_app: boolean }>;
+  per_type: Partial<Record<NotificationType, { push: boolean; in_app: boolean }>>;
   quiet_start: string | null;
   quiet_end: string | null;
   timezone: 'Asia/Dhaka';
 };
 
+const defaultChannel = { push: true, in_app: true };
+
+function withDefaults(initial: Preferences): Preferences & { per_type: Record<NotificationType, { push: boolean; in_app: boolean }> } {
+  return {
+    ...initial,
+    per_type: Object.fromEntries(
+      (Object.keys(labels) as NotificationType[]).map((type) => [type, { ...defaultChannel, ...initial.per_type?.[type] }]),
+    ) as Record<NotificationType, { push: boolean; in_app: boolean }>,
+  };
+}
+
 function PreferencesForm({ initial }: { initial: Preferences }) {
-  const [value, setValue] = useState(initial);
+  const [value, setValue] = useState(withDefaults(initial));
   const queryClient = useQueryClient();
   const save = useMutation({
     mutationFn: async () => (await api.put<Preferences>('/notifications/preferences', {

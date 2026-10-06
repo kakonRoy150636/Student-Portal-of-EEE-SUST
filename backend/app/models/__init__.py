@@ -11,7 +11,11 @@ from app.models.academic import (  # noqa: F401
     CourseEnrollment,
     CourseOffering,
     CourseOfferingTeacher,
+    EnrollmentStatus,
+    OfferingPublicationStatus,
     Semester,
+    TeacherAssignmentRequest,
+    TeacherAssignmentRequestStatus,
 )
 from app.models.ai_knowledge import (  # noqa: F401
     AIChatMessage,
@@ -21,6 +25,7 @@ from app.models.ai_knowledge import (  # noqa: F401
     StudyPlan,
 )
 from app.models.alumni import (  # noqa: F401
+    AlumniEmployment,
     AlumniProfile,
     Event,
     EventRSVP,
@@ -64,7 +69,18 @@ __all__ = [
     "UserRole",
     "StudentProfile",
     "FacultyProfile",
+    "ClassSchedule",
+    "Course",
+    "CourseEnrollment",
+    "CourseOffering",
+    "CourseOfferingTeacher",
+    "EnrollmentStatus",
+    "OfferingPublicationStatus",
+    "Semester",
+    "TeacherAssignmentRequest",
+    "TeacherAssignmentRequestStatus",
     "AlumniProfile",
+    "AlumniEmployment",
     "Event",
     "EventRSVP",
     "Scholarship",

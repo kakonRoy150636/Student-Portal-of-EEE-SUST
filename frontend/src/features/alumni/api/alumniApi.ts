@@ -21,7 +21,62 @@ export interface AlumniProfile {
   verified_by_admin: boolean;
   membership_status: 'pending' | 'active' | 'expired' | 'rejected';
   is_visible: boolean;
+  current_city?: string | null;
+  current_country?: string | null;
+  bio?: string | null;
+  phone?: string | null;
+  email_visible?: boolean;
+  phone_visible?: boolean;
+  is_verified?: boolean;
   user?: AlumniUserSummary | null;
+}
+
+export type EmploymentSector = 'industry' | 'academia' | 'government' | 'startup' | 'higher_study' | 'other';
+
+export interface AlumniEmployment {
+  id: string;
+  alumni_id: string;
+  organization: string;
+  position: string;
+  sector: EmploymentSector;
+  city: string | null;
+  country: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  is_current: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AlumniBatch { year: number; alumni_count: number; }
+export interface AlumniDirectoryItem {
+  id: string;
+  full_name: string;
+  batch_year: number;
+  department: string;
+  current_city: string | null;
+  current_country: string | null;
+  linkedin_url: string | null;
+  email: string | null;
+  phone: string | null;
+  current_employment: AlumniEmployment | null;
+}
+export interface AlumniDirectoryResponse { items: AlumniDirectoryItem[]; page: number; page_size: number; total: number; pages: number; }
+export interface AlumniBatchSummary {
+  year: number;
+  total: number;
+  employed: number;
+  higher_study: number;
+  abroad: number;
+  top_companies: { name: string; count: number }[];
+  top_countries: { name: string; count: number }[];
+}
+export interface AlumniProfileDetail extends AlumniDirectoryItem {
+  bio: string | null;
+  is_verified: boolean;
+  membership_status: string;
+  is_visible: boolean;
+  employments: AlumniEmployment[];
 }
 
 export interface AlumniNewsPost {
@@ -131,6 +186,16 @@ export interface DirectoryQuery {
   industry?: string;
 }
 
+export interface StandaloneDirectoryQuery {
+  batch?: number;
+  company?: string;
+  country?: string;
+  sector?: EmploymentSector;
+  q?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export interface AlumniClaimInput {
   batch_year: number;
   department: string;
@@ -140,6 +205,12 @@ export interface AlumniClaimInput {
   industry?: string | null;
   linkedin_url?: string | null;
   is_visible?: boolean;
+  current_city?: string | null;
+  current_country?: string | null;
+  bio?: string | null;
+  phone?: string | null;
+  email_visible?: boolean;
+  phone_visible?: boolean;
 }
 
 export interface AlumniRegisterInput extends AlumniClaimInput {
@@ -163,8 +234,24 @@ export const alumniApi = {
   landing: () => api.get<AlumniLandingPayload>('/alumni/landing'),
   directory: (params: DirectoryQuery = {}) =>
     api.get<AlumniProfile[]>('/alumni/directory', { params }),
+  batches: () => api.get<AlumniBatch[]>('/alumni/batches'),
+  standaloneDirectory: (params: StandaloneDirectoryQuery = {}) =>
+    api.get<AlumniDirectoryResponse>('/alumni/', { params }),
+  summary: (year: number) => api.get<AlumniBatchSummary>(`/alumni/batches/${year}/summary`),
+  profile: (id: string) => api.get<AlumniProfileDetail>(`/alumni/${id}`),
   getMyProfile: () => api.get<AlumniProfile | null>('/alumni/me'),
   updateMyProfile: (body: Partial<AlumniClaimInput>) => api.patch<AlumniProfile>('/alumni/me', body),
+  myEmployments: () => api.get<AlumniEmployment[]>('/alumni/me/employments'),
+  replaceMyEmployments: (body: Omit<AlumniEmployment, 'id' | 'alumni_id' | 'created_at' | 'updated_at'>[]) =>
+    api.put<AlumniEmployment[]>('/alumni/me/employments', body),
+  importPreview: (file: File) => {
+    const body = new FormData(); body.append('file', file);
+    return api.post<AlumniImportPreview>('/alumni/admin/import/preview', body);
+  },
+  importCsv: (file: File) => {
+    const body = new FormData(); body.append('file', file);
+    return api.post<AlumniImportResult>('/alumni/admin/import', body);
+  },
   claim: (body: AlumniClaimInput) => api.post<AlumniProfile>('/alumni/claim', body),
   dashboard: () => api.get<AlumniDashboardPayload>('/alumni/dashboard'),
   events: () => api.get<AlumniEvent[]>('/alumni/events'),
@@ -188,3 +275,7 @@ export const alumniApi = {
   adminReject: (profileId: string, reason?: string) =>
     api.patch<AlumniProfile>(`/alumni/admin/reject/${profileId}`, reason ? { reason } : null),
 };
+
+export interface AlumniImportError { row: number; field?: string | null; message: string; }
+export interface AlumniImportPreview { dry_run: boolean; total_rows: number; valid_rows: number; invalid_rows: number; errors: AlumniImportError[]; }
+export interface AlumniImportResult extends AlumniImportPreview { imported_rows: number; updated_rows: number; }

@@ -13,7 +13,7 @@ pytestmark = pytest.mark.asyncio
 ], ids=['13.5-below-minimum', '15-inclusive', '24-inclusive', '25.5-above-maximum'])
 async def test_registration_credit_boundaries(api, database, credits, expected):
     semester = await database.semester()
-    offerings = [await database.offering(c, semester=semester) for c in credits]
+    offerings = [await database.offering(c, semester=semester, published=True) for c in credits]
     payload = database.registration(offerings)
     result = await api.post('/api/v1/auth/register/student', json=payload)
     assert result.status_code == expected, result.text

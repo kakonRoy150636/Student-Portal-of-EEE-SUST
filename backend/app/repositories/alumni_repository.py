@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.alumni import (
     AlumniProfile,
+    AlumniEmployment,
     Event,
     EventRSVP,
     GalleryAlbum,
@@ -18,6 +19,7 @@ from app.models.alumni import (
     Scholarship,
     ScholarshipApplication,
 )
+from app.models.user import User
 from app.repositories.base import BaseRepository
 
 # Postgres text-search configuration for the alumni directory. This single
@@ -148,6 +150,143 @@ class AlumniRepository(BaseRepository[AlumniProfile]):
             stmt = stmt.where(and_(*filters))
         stmt = stmt.order_by(AlumniProfile.batch_year.desc(), AlumniProfile.created_at.desc()).limit(limit)
         return list((await self.db.execute(stmt)).scalars().all())
+
+    async def batch_counts(self) -> dict[int, int]:
+        rows = (await self.db.execute(
+            select(AlumniProfile.batch_year, func.count(AlumniProfile.id))
+            .where(AlumniProfile.membership_status == "active", AlumniProfile.is_visible.is_(True))
+            .group_by(AlumniProfile.batch_year)
+        )).all()
+        return {int(year): int(count) for year, count in rows}
+
+    def _directory_filters(self, *, batch: int | None, company: str | None, country: str | None,
+                           sector: str | None, q: str | None):
+        filters: list[ColumnElement[bool]] = [
+            AlumniProfile.membership_status == "active",
+            AlumniProfile.is_visible.is_(True),
+        ]
+        if batch is not None:
+            filters.append(AlumniProfile.batch_year == batch)
+        if company:
+            like = f"%{company}%"
+            filters.append(or_(
+                AlumniEmployment.organization.ilike(like),
+                AlumniProfile.current_company.ilike(like),
+            ))
+        if country:
+            like = f"%{country}%"
+            filters.append(or_(
+                AlumniEmployment.country.ilike(like),
+                AlumniProfile.current_country.ilike(like),
+            ))
+        if sector:
+            filters.append(AlumniEmployment.sector == sector)
+        if q:
+            like = f"%{q}%"
+            filters.append(or_(
+                User.full_name.ilike(like),
+                AlumniProfile.department.ilike(like),
+                AlumniProfile.current_company.ilike(like),
+                AlumniProfile.industry.ilike(like),
+                AlumniEmployment.organization.ilike(like),
+                AlumniEmployment.position.ilike(like),
+            ))
+        return filters
+
+    def _directory_from(self):
+        return (
+            AlumniProfile.__table__
+            .join(User.__table__, User.id == AlumniProfile.user_id)
+            .outerjoin(
+                AlumniEmployment.__table__,
+                and_(
+                    AlumniEmployment.alumni_id == AlumniProfile.id,
+                    AlumniEmployment.is_current.is_(True),
+                ),
+            )
+        )
+
+    async def directory_page(self, *, batch: int | None, company: str | None, country: str | None,
+                             sector: str | None, q: str | None, page: int, page_size: int):
+        filters = self._directory_filters(batch=batch, company=company, country=country, sector=sector, q=q)
+        total = int((await self.db.scalar(
+            select(func.count(func.distinct(AlumniProfile.id)))
+            .select_from(self._directory_from())
+            .where(and_(*filters))
+        )) or 0)
+        rows = (await self.db.execute(
+            select(AlumniProfile, User, AlumniEmployment)
+            .select_from(self._directory_from())
+            .where(and_(*filters))
+            .order_by(AlumniProfile.batch_year.desc(), User.full_name.asc(), AlumniProfile.id.asc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )).all()
+        return rows, total
+
+    async def detail(self, profile_id: uuid.UUID) -> AlumniProfile | None:
+        stmt = (
+            select(AlumniProfile)
+            .options(selectinload(AlumniProfile.user), selectinload(AlumniProfile.employments))
+            .where(
+                AlumniProfile.id == profile_id,
+                AlumniProfile.membership_status == "active",
+                AlumniProfile.is_visible.is_(True),
+            )
+        )
+        return (await self.db.execute(stmt)).scalar_one_or_none()
+
+    async def summary(self, year: int) -> dict:
+        base = select(AlumniProfile.id).where(
+            AlumniProfile.batch_year == year,
+            AlumniProfile.membership_status == "active",
+            AlumniProfile.is_visible.is_(True),
+        )
+        total = int((await self.db.scalar(select(func.count()).select_from(base.subquery()))) or 0)
+        current = AlumniEmployment.__table__.join(AlumniProfile.__table__, AlumniProfile.id == AlumniEmployment.alumni_id)
+        current_where = and_(
+            AlumniProfile.batch_year == year,
+            AlumniProfile.membership_status == "active",
+            AlumniProfile.is_visible.is_(True),
+            AlumniEmployment.is_current.is_(True),
+        )
+        employed = int((await self.db.scalar(
+            select(func.count(func.distinct(AlumniEmployment.alumni_id))).select_from(current).where(
+                current_where, AlumniEmployment.sector != "higher_study",
+                AlumniEmployment.organization.is_not(None),
+            )
+        )) or 0)
+        higher_study = int((await self.db.scalar(
+            select(func.count(func.distinct(AlumniEmployment.alumni_id))).select_from(current).where(
+                current_where, AlumniEmployment.sector == "higher_study",
+            )
+        )) or 0)
+        abroad = int((await self.db.scalar(
+            select(func.count(func.distinct(AlumniEmployment.alumni_id))).select_from(current).where(
+                current_where,
+                AlumniEmployment.country.is_not(None),
+                func.lower(AlumniEmployment.country) != "bangladesh",
+            )
+        )) or 0)
+        company_rows = (await self.db.execute(
+            select(AlumniEmployment.organization, func.count(func.distinct(AlumniEmployment.alumni_id)).label("count"))
+            .select_from(current).where(current_where)
+            .group_by(AlumniEmployment.organization).order_by(func.count().desc(), AlumniEmployment.organization.asc()).limit(5)
+        )).all()
+        country_rows = (await self.db.execute(
+            select(AlumniEmployment.country, func.count(func.distinct(AlumniEmployment.alumni_id)).label("count"))
+            .select_from(current).where(current_where, AlumniEmployment.country.is_not(None))
+            .group_by(AlumniEmployment.country).order_by(func.count().desc(), AlumniEmployment.country.asc()).limit(5)
+        )).all()
+        return {
+            "year": year,
+            "total": total,
+            "employed": employed,
+            "higher_study": higher_study,
+            "abroad": abroad,
+            "top_companies": [{"name": str(name), "count": int(count)} for name, count in company_rows],
+            "top_countries": [{"name": str(name), "count": int(count)} for name, count in country_rows],
+        }
 
 
 class EventRepository(BaseRepository[Event]):

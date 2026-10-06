@@ -1,5 +1,6 @@
 """Room booking service and route tests."""
 from datetime import datetime, timedelta, timezone
+import uuid
 
 import pytest
 
@@ -13,7 +14,8 @@ SLOT_START = datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc)
 SLOT_END = SLOT_START + timedelta(hours=1)
 
 
-async def _make_room(db, room_number="Room 999", capacity=30) -> Room:
+async def _make_room(db, room_number=None, capacity=30) -> Room:
+    room_number = room_number or f"Room {uuid.uuid4().hex[:12]}"
     room = Room(room_number=room_number, building="Test", capacity=capacity, is_lab=False)
     db.add(room)
     await db.commit()

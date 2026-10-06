@@ -19,7 +19,8 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.skipif(not ADMIN_URL, reason="Req
 BACKEND = Path(__file__).resolve().parents[1]
 SCHEMA = BACKEND.parent / "database" / "schema.sql"
 BASELINE = "20260911_0001"
-HEAD = "20261004_0008"
+HEAD = "20261005_0010"
+PREVIOUS_HEAD = "20261005_0009"
 
 
 async def alembic(url, *args, succeeds=True):
@@ -175,3 +176,81 @@ async def test_baseline_upgrade_adoption_and_downgrade():
         for name in databases:
             await admin.execute(f'DROP DATABASE "{name}" WITH (FORCE)')
         await admin.close()
+
+
+@pytest.fixture
+async def academic_legacy_database():
+    """A private database with the exact pre-feature Alembic schema."""
+    admin_url = make_url(ADMIN_URL).set(drivername="postgresql")
+    admin = await asyncpg.connect(admin_url.render_as_string(hide_password=False))
+    name = "portal_academic_migration_" + uuid.uuid4().hex
+    conn = None
+    try:
+        await admin.execute(f'CREATE DATABASE "{name}"')
+        url = admin_url.set(drivername="postgresql+asyncpg", database=name).render_as_string(hide_password=False)
+        await alembic(url, "upgrade", PREVIOUS_HEAD)
+        conn = await asyncpg.connect(admin_url.set(database=name).render_as_string(hide_password=False))
+        teacher = await conn.fetchval("""INSERT INTO users(identifier,email,password_hash,full_name,role)
+            VALUES ('legacy-teacher','teacher@example.test','not-a-login-hash','Legacy teacher','teacher') RETURNING id""")
+        course = await conn.fetchval("""INSERT INTO courses(course_code,title,credit_hours,type)
+            VALUES ('LEGACY','Legacy course',1.5,'theory') RETURNING id""")
+        semester = await conn.fetchval("""INSERT INTO semesters(title,start_date,end_date)
+            VALUES ('Legacy semester','2026-07-01','2026-12-31') RETURNING id""")
+        offering = await conn.fetchval("""INSERT INTO course_offerings(course_id,semester_id,coordinator_id)
+            VALUES ($1,$2,$3) RETURNING id""", course, semester, teacher)
+        assignment = await conn.fetchval("""INSERT INTO course_offering_teachers(course_offering_id,teacher_id)
+            VALUES ($1,$2) RETURNING id""", offering, teacher)
+        for status in ("enrolled", "main", "improvement", "drop"):
+            student = await conn.fetchval("""INSERT INTO users(identifier,email,password_hash,full_name)
+                VALUES ($1,$2,'not-a-login-hash','Legacy student') RETURNING id""", status, status + "@example.test")
+            await conn.execute("""INSERT INTO course_enrollments(course_offering_id,student_id,status,enrolled_at)
+                VALUES ($1,$2,$3,'2026-10-01 07:00:00Z')""", offering, student, status)
+        yield conn, url, offering, assignment
+    finally:
+        if conn is not None:
+            await conn.close()
+        await admin.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+        await admin.close()
+
+
+@pytest.mark.parametrize("adopt_unversioned", [False, True], ids=["managed-0009", "adopt-existing-schema"])
+async def test_academic_upgrade_preserves_legacy_rows(academic_legacy_database, adopt_unversioned):
+    conn, url, offering, assignment = academic_legacy_database
+    before = [tuple(row) for row in await conn.fetch("SELECT * FROM course_enrollments ORDER BY id")]
+    if adopt_unversioned:
+        # Equivalent to an inspected pre-feature schema.sql database. Explicit
+        # stamping follows the project's existing-database adoption procedure.
+        await conn.execute("DROP TABLE alembic_version")
+        await alembic(url, "stamp", PREVIOUS_HEAD)
+    await alembic(url, "upgrade", "head")
+    assert await conn.fetchval("SELECT version_num FROM alembic_version") == HEAD
+    after = [tuple(row) for row in await conn.fetch("""SELECT id,course_offering_id,student_id,status,advisor_approved,enrolled_at
+        FROM course_enrollments ORDER BY id""")]
+    assert after == before
+    row = await conn.fetchrow("SELECT * FROM course_offerings WHERE id=$1", offering)
+    assert row["publication_status"] == "draft"
+    assert row["created_by"] is None
+    assert row["published_by"] is None
+    assert row["published_at"] is None
+    assert await conn.fetchval("SELECT id FROM course_offering_teachers") == assignment
+    assert await conn.fetchval("SELECT count(*) FROM teacher_assignment_requests") == 0
+    assert await conn.fetchval("SELECT count(*) FROM users") == 5  # no invented administrator
+    assert await conn.fetchval("SELECT count(*) FROM course_enrollments WHERE updated_at = enrolled_at") == 4
+    assert await conn.fetchval("SELECT count(*) FROM course_enrollments WHERE dropped_at IS NULL") == 4
+    head_catalog = await catalog(conn)
+    await alembic(url, "downgrade", PREVIOUS_HEAD)
+    assert [tuple(row) for row in await conn.fetch("SELECT * FROM course_enrollments ORDER BY id")] == before
+    await alembic(url, "upgrade", "head")
+    assert await catalog(conn) == head_catalog
+
+
+async def test_academic_invalid_legacy_status_aborts_upgrade(academic_legacy_database):
+    conn, url, _, _ = academic_legacy_database
+    await conn.execute("UPDATE course_enrollments SET status='invalid' WHERE status='drop'")
+    output = await alembic(url, "upgrade", "head", succeeds=False)
+    assert "ck_course_enrollments_status" in output
+    assert await conn.fetchval("SELECT version_num FROM alembic_version") == PREVIOUS_HEAD
+    assert await conn.fetchval("SELECT count(*) FROM course_enrollments WHERE status='invalid'") == 1
+    assert await conn.fetchval("SELECT to_regclass('teacher_assignment_requests')") is None
+    assert await conn.fetchval("""SELECT count(*) FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='course_offerings' AND column_name='publication_status'""") == 0

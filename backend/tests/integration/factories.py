@@ -34,13 +34,17 @@ class Factory:
         return await self.conn.fetchval('''INSERT INTO semesters(title,start_date,end_date,is_active)
             VALUES ($1,'2030-01-01','2030-06-30',true) RETURNING id''', uuid.uuid4().hex)
 
-    async def offering(self, credits=3, semester=None, teacher=None):
+    async def offering(self, credits=3, semester=None, teacher=None, published=False):
         semester = semester or await self.semester()
         course = await self.conn.fetchval('''INSERT INTO courses(course_code,title,credit_hours,type)
             VALUES ($1,'Integration course',$2,'theory') RETURNING id''',
             'T'+uuid.uuid4().hex[:10], Decimal(str(credits)))
         offering = await self.conn.fetchval('''INSERT INTO course_offerings(course_id,semester_id,coordinator_id)
             VALUES ($1,$2,$3) RETURNING id''', course, semester, teacher.id if teacher else None)
+        if published:
+            await self.conn.execute(
+                "UPDATE course_offerings SET publication_status='published' WHERE id=$1", offering
+            )
         if teacher:
             await self.conn.execute('''INSERT INTO course_offering_teachers(course_offering_id,teacher_id)
                 VALUES ($1,$2)''', offering, teacher.id)
