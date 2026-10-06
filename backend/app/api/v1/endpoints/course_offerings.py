@@ -21,6 +21,7 @@ from app.schemas.academic import (
     EnrollmentCreate,
     EnrollmentResponse,
     RosterEntryResponse,
+    SemesterResponse,
     TeacherAssignmentRequestResponse,
 )
 from app.services.course_offering_service import CourseOfferingService
@@ -130,6 +131,14 @@ async def list_available_course_offerings(
     db: AsyncSession = Depends(get_db),
 ):
     return await CourseOfferingService(db).list_available_offerings(user.id)
+
+
+@router.get("/semesters/active", response_model=list[SemesterResponse])
+async def list_active_semesters(
+    user: User = Depends(RequireRole(STUDENT_OR_CR)),
+    db: AsyncSession = Depends(get_db),
+):
+    return await CourseOfferingService(db).list_active_semesters()
 
 
 @router.get("/assignment-requests", response_model=list[TeacherAssignmentRequestResponse])

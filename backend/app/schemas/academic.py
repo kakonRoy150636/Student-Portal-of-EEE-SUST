@@ -1,7 +1,7 @@
 """Contracts for course offerings, assignment requests and enrollment."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -31,6 +31,22 @@ class CourseOfferingPublicationRequest(BaseModel):
     published: bool
 
 
+class SemesterResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    is_active: bool
+    start_date: date
+    end_date: date
+
+
+class AssignedCourseTeacherResponse(BaseModel):
+    teacher_id: uuid.UUID
+    teacher_name: str
+    role: str
+
+
 class CourseOfferingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -42,7 +58,9 @@ class CourseOfferingResponse(BaseModel):
     credit_hours: float
     course_type: str
     semester_title: str
+    semester_is_active: bool
     publication_status: PublicationStatus
+    assigned_teachers: list[AssignedCourseTeacherResponse] = Field(default_factory=list)
     created_by: uuid.UUID | None = None
     published_by: uuid.UUID | None = None
     published_at: datetime | None = None

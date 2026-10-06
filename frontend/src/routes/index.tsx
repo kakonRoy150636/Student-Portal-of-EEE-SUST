@@ -11,6 +11,7 @@ const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'));
 const RegisterPage = lazy(() => import('@/features/auth/pages/RegisterPage'));
 const DashboardPage = lazy(() => import('@/features/dashboard/pages/RoleDashboardPage'));
 const SchedulePage = lazy(() => import('@/features/schedule/pages/SchedulePage'));
+const CourseSelectionPage = lazy(() => import('@/features/course-selection/pages/CourseSelectionPage'));
 const RoomBookingPage = lazy(() => import('@/features/room-booking/pages/RoomBookingPage'));
 const AttendancePage = lazy(() => import('@/features/attendance/pages/AttendancePage'));
 const ResourcesPage = lazy(() => import('@/features/resources/pages/ResourcesPage'));
@@ -46,6 +47,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', element: <Suspense fallback={<Fallback />}><DashboardPage /></Suspense> },
+      { path: 'course-selection', element: <ProtectedRoute roles={[UserRole.STUDENT, UserRole.CR]}><Suspense fallback={<Fallback />}><CourseSelectionPage /></Suspense></ProtectedRoute> },
       { path: 'schedule', element: <ProtectedRoute roles={[UserRole.STUDENT, UserRole.CR, UserRole.TEACHER]}><Suspense fallback={<Fallback />}><SchedulePage /></Suspense></ProtectedRoute> },
       { path: 'room-booking', element: <ProtectedRoute roles={[UserRole.STUDENT, UserRole.CR, UserRole.TEACHER, UserRole.SUPER_ADMIN]}><Suspense fallback={<Fallback />}><RoomBookingPage /></Suspense></ProtectedRoute> },
       { path: 'attendance', element: <ProtectedRoute roles={[UserRole.STUDENT, UserRole.CR, UserRole.TEACHER]}><Suspense fallback={<Fallback />}><AttendancePage /></Suspense></ProtectedRoute> },

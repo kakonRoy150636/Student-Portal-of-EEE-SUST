@@ -218,7 +218,9 @@ class CourseOfferingService:
             "credit_hours": float(course.credit_hours),
             "course_type": course.type,
             "semester_title": semester.title,
+            "semester_is_active": bool(semester.is_active),
             "publication_status": offering.publication_status,
+            "assigned_teachers": [],
             "created_by": offering.created_by,
             "published_by": offering.published_by,
             "published_at": offering.published_at,
@@ -237,7 +239,37 @@ class CourseOfferingService:
         if not row:
             raise NotFoundException("Course offering not found.")
         offering, course, semester = row
-        return self._offering_payload(offering, course, semester)
+        payload = self._offering_payload(offering, course, semester)
+        teachers = await self._assigned_teacher_details([offering.id])
+        payload["assigned_teachers"] = teachers.get(offering.id, [])
+        return payload
+
+    async def _assigned_teacher_details(self, offering_ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, list[dict]]:
+        """Batch-load public names of active, approved (or legacy) assignments."""
+        if not offering_ids:
+            return {}
+        request = aliased(TeacherAssignmentRequest)
+        rows = (await self.db.execute(
+            select(CourseOfferingTeacher.course_offering_id, User.id, User.full_name, CourseOfferingTeacher.role)
+            .join(User, User.id == CourseOfferingTeacher.teacher_id)
+            .outerjoin(request, and_(
+                request.course_offering_id == CourseOfferingTeacher.course_offering_id,
+                request.teacher_id == CourseOfferingTeacher.teacher_id,
+            ))
+            .where(
+                CourseOfferingTeacher.course_offering_id.in_(offering_ids),
+                User.is_active.is_(True),
+                User.role == UserRole.TEACHER,
+                or_(request.id.is_(None), request.status == TeacherAssignmentRequestStatus.APPROVED.value),
+            )
+            .order_by(User.full_name, User.id)
+        )).all()
+        teachers: dict[uuid.UUID, list[dict]] = {}
+        for offering_id, teacher_id, teacher_name, role in rows:
+            teachers.setdefault(offering_id, []).append({
+                "teacher_id": teacher_id, "teacher_name": teacher_name, "role": role,
+            })
+        return teachers
 
     async def create_offering(
         self,
@@ -278,7 +310,7 @@ class CourseOfferingService:
             offering.semester_id = semester.id
             offering.updated_at = self._now()
             await self.db.flush()
-            return self._offering_payload(offering, course, semester)
+            return await self._offering_details(offering.id)
 
         return await self._run_mutation(
             operation,
@@ -321,7 +353,16 @@ class CourseOfferingService:
                 .order_by(Course.course_code)
             )
         ).all()
-        return [self._offering_payload(offering, course, semester) for offering, course, semester in rows]
+        teachers = await self._assigned_teacher_details([offering.id for offering, _, _ in rows])
+        return [
+            {**self._offering_payload(offering, course, semester), "assigned_teachers": teachers.get(offering.id, [])}
+            for offering, course, semester in rows
+        ]
+
+    async def list_active_semesters(self) -> list[Semester]:
+        return list((await self.db.scalars(
+            select(Semester).where(Semester.is_active.is_(True)).order_by(Semester.start_date.desc(), Semester.id)
+        )).all())
 
     async def list_available_offerings(self, teacher_id: uuid.UUID) -> list[dict]:
         request = aliased(TeacherAssignmentRequest)
@@ -340,8 +381,12 @@ class CourseOfferingService:
                 .order_by(Semester.start_date.desc(), Course.course_code)
             )
         ).all()
+        teachers = await self._assigned_teacher_details([offering.id for offering, _, _, _ in rows])
         return [
-            self._offering_payload(offering, course, semester, request_status)
+            {
+                **self._offering_payload(offering, course, semester, request_status),
+                "assigned_teachers": teachers.get(offering.id, []),
+            }
             for offering, course, semester, request_status in rows
         ]
 

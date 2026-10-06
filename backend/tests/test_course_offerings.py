@@ -115,6 +115,12 @@ async def test_students_see_only_published_active_offerings_and_enroll(client, d
     listing = await client.get("/api/v1/course-offerings/published", headers=auth_header(student))
     assert listing.status_code == 200
     assert {row["id"] for row in listing.json()} == {str(published.id)}
+    active_semesters = await client.get(
+        "/api/v1/course-offerings/semesters/active", headers=auth_header(student)
+    )
+    assert active_semesters.status_code == 200
+    assert all(row["is_active"] for row in active_semesters.json())
+    assert listing.json()[0]["semester_is_active"] is True
 
     draft_result = await client.post(
         f"/api/v1/course-offerings/{draft.id}/enroll", headers=auth_header(student)
@@ -232,6 +238,16 @@ async def test_teacher_request_approval_controls_roster_access(client, db):
     )
     assert approved.status_code == 200
     assert approved.json()["status"] == "approved"
+
+    published_listing = await client.get(
+        "/api/v1/course-offerings/published", headers=auth_header(student)
+    )
+    assert published_listing.status_code == 200
+    assert published_listing.json()[0]["assigned_teachers"] == [{
+        "teacher_id": str(teacher.id),
+        "teacher_name": teacher.full_name,
+        "role": "course_teacher",
+    }]
 
     enrolled = await client.post(
         f"/api/v1/course-offerings/{offering.id}/enroll", headers=auth_header(student)

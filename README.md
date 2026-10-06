@@ -38,7 +38,7 @@ The student home combines a campus-led visual introduction with live academic me
 | Area | Highlights |
 | --- | --- |
 | Authentication | JWT access tokens, rotated refresh tokens, HttpOnly refresh cookies, and RBAC |
-| Academic operations | Course enrolment, schedules, attendance, credit-hour validation, and department dashboards |
+| Academic operations | Published semester course selection, enrollment lifecycle, schedules, attendance, credit-hour validation, and department dashboards |
 | Booking | Room and lab booking with PostgreSQL GiST conflict prevention |
 | Resources | Presigned S3/MinIO uploads and PostgreSQL full-text search |
 | Projects | Capstone lifecycle, supervisor workflows, and GitHub integration |
@@ -60,7 +60,7 @@ The signed-in frontend uses an academic editorial direction rather than a generi
 - Serif academic headings, readable sans-serif body copy, and tabular mono data
 - Live dashboard metrics from `GET /api/v1/dashboard/summary`
 - Role-specific sections for students, CRs, teachers, lab assistants, alumni, and admins
-- Schedule, attendance, resources, AI assistant, and career quick actions
+- Course selection, schedule, attendance, resources, AI assistant, and career quick actions
 - Loading skeletons and explicit empty states instead of fabricated numbers
 
 ## Product Highlights
@@ -296,6 +296,36 @@ fixtures were not configured). The development seed inserted 1 semester,
 npm --prefix frontend install
 npm --prefix frontend run dev
 ```
+
+### Student course selection
+
+Students and class representatives can open **Course Selection** from the Academic
+navigation to review offerings published for the active semester. The page reads
+the active semester, course code/title, server-derived credit hours, assigned
+teachers, enrollment state, and total active credits from the API. It supports
+select, drop, and reselect actions; dropped enrollments remain visible so the
+same enrollment record can be reactivated.
+
+Only offerings that are both published and attached to an active semester can be
+changed. The server remains the source of truth for eligibility, enrollment
+conflicts, credits, and ownership. Successful changes refresh the dashboard,
+routine, attendance, and notification queries so related views stay current.
+
+The supporting API contracts are:
+
+```text
+GET  /api/v1/course-offerings/semesters/active
+GET  /api/v1/course-offerings/published
+GET  /api/v1/course-offerings/enrollments/me
+GET  /api/v1/course-offerings/enrollments/me/credits
+POST /api/v1/course-offerings/{offering_id}/enroll
+POST /api/v1/course-offerings/enrollments/{enrollment_id}/drop
+POST /api/v1/course-offerings/enrollments/{enrollment_id}/reselect
+```
+
+The interface includes loading, empty, API error, and enrollment-conflict
+states. A conflict prompts the user to review the refreshed list before trying
+again; it does not create a second enrollment row.
 
 ### Backend tests
 

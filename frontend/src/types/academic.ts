@@ -10,6 +10,60 @@ export interface Semester {
   id: number;
   title: string;
   is_active: boolean;
+  start_date: string;
+  end_date: string;
+}
+
+export type OfferingPublicationStatus = 'draft' | 'published';
+export type TeacherAssignmentRequestStatus = 'pending' | 'approved' | 'rejected';
+export type EnrollmentStatus = 'enrolled' | 'main' | 'improvement' | 'drop';
+export type ActiveEnrollmentStatus = Exclude<EnrollmentStatus, 'drop'>;
+
+export interface AssignedCourseTeacher {
+  teacher_id: string;
+  teacher_name: string;
+  role: string;
+}
+
+export interface CourseOffering {
+  id: string;
+  course_id: string;
+  semester_id: number;
+  semester_title: string;
+  semester_is_active: boolean;
+  course_code: string;
+  course_title: string;
+  course_type: string;
+  credit_hours: number;
+  publication_status: OfferingPublicationStatus;
+  assigned_teachers: AssignedCourseTeacher[];
+  created_by: string | null;
+  published_by: string | null;
+  published_at: string | null;
+  request_status: TeacherAssignmentRequestStatus | null;
+}
+
+export interface CourseEnrollment {
+  id: number;
+  course_offering_id: string;
+  student_id: string;
+  status: EnrollmentStatus;
+  course_code: string;
+  course_title: string;
+  semester_id: number;
+  semester_title: string;
+  credit_hours: number;
+  enrolled_at: string;
+  updated_at: string;
+  dropped_at: string | null;
+}
+
+export interface EnrollmentSelection {
+  enrollment_type: ActiveEnrollmentStatus;
+}
+
+export interface ActiveCreditTotal {
+  active_credit_total: number;
 }
 
 export interface ClassSchedule {
