@@ -18,11 +18,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.academic import (
+    ACTIVE_ENROLLMENT_STATUSES,
     ClassSchedule,
     CourseEnrollment,
     CourseOffering,
     CourseOfferingTeacher,
     Course,
+    Semester,
 )
 from app.models.alumni import AlumniProfile, MentorshipPair
 from app.models.attendance import AttendanceRecord, AttendanceSession
@@ -78,7 +80,14 @@ async def _student_section(db: AsyncSession, user: User) -> dict:
     """
     enrolled = await _count(
         db,
-        select(func.count(CourseEnrollment.id)).where(CourseEnrollment.student_id == user.id),
+        select(func.count(CourseEnrollment.id))
+        .join(CourseOffering, CourseOffering.id == CourseEnrollment.course_offering_id)
+        .join(Semester, Semester.id == CourseOffering.semester_id)
+        .where(
+            CourseEnrollment.student_id == user.id,
+            CourseEnrollment.status.in_(ACTIVE_ENROLLMENT_STATUSES),
+            Semester.is_active.is_(True),
+        ),
     )
 
     total_stmt = (
@@ -104,7 +113,12 @@ async def _student_section(db: AsyncSession, user: User) -> dict:
         .select_from(CourseEnrollment)
         .join(CourseOffering, CourseOffering.id == CourseEnrollment.course_offering_id)
         .join(Course, Course.id == CourseOffering.course_id)
-        .where(CourseEnrollment.student_id == user.id)
+        .join(Semester, Semester.id == CourseOffering.semester_id)
+        .where(
+            CourseEnrollment.student_id == user.id,
+            CourseEnrollment.status.in_(ACTIVE_ENROLLMENT_STATUSES),
+            Semester.is_active.is_(True),
+        )
     )
     credits = await _scalar(db, credits_stmt, default=0)
 
@@ -278,13 +292,17 @@ async def _today_routine(db: AsyncSession, owner_filter) -> list[dict]:
         .join(CourseOffering, CourseOffering.id == ClassSchedule.course_offering_id)
         .join(Course, Course.id == CourseOffering.course_id)
         .join(Room, Room.id == ClassSchedule.room_id)
-        .where(ClassSchedule.day_of_week.ilike(_today_name()))
+        .join(Semester, Semester.id == CourseOffering.semester_id)
+        .where(
+            ClassSchedule.day_of_week.ilike(_today_name()),
+            Semester.is_active.is_(True),
+        )
         .distinct()
     )
     # Restrict to the caller's own enrolments.
     if owner_filter is not None:
         enrolled = select(CourseEnrollment.course_offering_id).where(
-            owner_filter, CourseEnrollment.status.notin_(("drop",))
+            owner_filter, CourseEnrollment.status.in_(ACTIVE_ENROLLMENT_STATUSES)
         )
         stmt = stmt.where(CourseOffering.id.in_(enrolled))
 

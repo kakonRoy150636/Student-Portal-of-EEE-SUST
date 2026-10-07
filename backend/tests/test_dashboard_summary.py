@@ -6,6 +6,7 @@ trustworthy: the numbers actually come from the rows that exist, and a caller
 only ever receives the section for their own role.
 """
 from datetime import date
+import uuid
 
 import pytest
 
@@ -16,22 +17,30 @@ from app.models.user import User, UserRole
 from .conftest import auth_header, make_user
 
 
-async def _offering_for(db, student: User) -> CourseOffering:
-    """A course offering plus an active enrolment for ``student``."""
+async def _offering_for(
+    db,
+    student: User,
+    *,
+    semester_active: bool = True,
+    status: str = "enrolled",
+    credits: float = 3.0,
+) -> CourseOffering:
+    """A course offering plus an enrolment for ``student``."""
     from app.models.academic import Course, Semester
 
     # SQLite's Date type rejects ISO strings (Postgres would coerce them).
+    suffix = uuid.uuid4().hex[:8]
     semester = Semester(
-        title=f"Sem {student.identifier}",
-        is_active=True,
+        title=f"Sem {suffix}",
+        is_active=semester_active,
         start_date=date(2026, 1, 1),
         end_date=date(2026, 6, 30),
     )
     db.add(semester)
     await db.flush()
 
-    course = Course(course_code=f"EEE {student.identifier[-3:]}", title="Test Course",
-                    credit_hours=3.0, type="theory", description="fixture")
+    course = Course(course_code=f"EEE {suffix}", title="Test Course",
+                    credit_hours=credits, type="theory", description="fixture")
     db.add(course)
     await db.flush()
 
@@ -39,7 +48,7 @@ async def _offering_for(db, student: User) -> CourseOffering:
     db.add(offering)
     await db.flush()
 
-    db.add(CourseEnrollment(course_offering_id=offering.id, student_id=student.id))
+    db.add(CourseEnrollment(course_offering_id=offering.id, student_id=student.id, status=status))
     await db.commit()
     return offering
 
@@ -95,6 +104,20 @@ async def test_student_section_reflects_real_attendance_rows(client, db, student
     # A student must never receive department-wide totals.
     assert body["admin"] is None
     assert body["teacher"] is None
+
+
+@pytest.mark.asyncio
+async def test_student_summary_counts_only_current_active_enrollments(client, db, student):
+    await _offering_for(db, student, credits=3.0)
+    await _offering_for(db, student, status="drop", credits=2.0)
+    await _offering_for(db, student, semester_active=False, status="main", credits=4.0)
+
+    resp = await client.get("/api/v1/dashboard/summary", headers=auth_header(student))
+    assert resp.status_code == 200
+    summary = resp.json()["student"]
+
+    assert summary["enrolled_courses"] == 1
+    assert summary["credit_hours"] == pytest.approx(3.0)
 
 
 @pytest.mark.asyncio

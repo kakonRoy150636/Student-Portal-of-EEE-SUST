@@ -302,11 +302,22 @@ async def test_teacher_request_approval_controls_roster_access(client, db):
     )
     assert enrolled.status_code == 201
 
+    dropped_student = await make_user(db, role=UserRole.STUDENT)
+    dropped = await client.post(
+        f"/api/v1/course-offerings/{offering.id}/enroll", headers=auth_header(dropped_student)
+    )
+    assert dropped.status_code == 201
+    dropped_result = await client.post(
+        f"/api/v1/course-offerings/enrollments/{dropped.json()['id']}/drop",
+        headers=auth_header(dropped_student),
+    )
+    assert dropped_result.status_code == 200
+
     roster = await client.get(
         f"/api/v1/course-offerings/{offering.id}/roster", headers=auth_header(teacher)
     )
     assert roster.status_code == 200, roster.text
-    assert roster.json()[0]["student_id"] == str(student.id)
+    assert [row["student_id"] for row in roster.json()] == [str(student.id)]
 
     not_approved = await client.get(
         f"/api/v1/course-offerings/{offering.id}/roster", headers=auth_header(other_teacher)

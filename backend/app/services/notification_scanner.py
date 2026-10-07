@@ -4,7 +4,13 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import select, text
 
-from app.models.academic import ClassSchedule, CourseOffering, CourseEnrollment, Semester
+from app.models.academic import (
+    ACTIVE_ENROLLMENT_STATUSES,
+    ClassSchedule,
+    CourseEnrollment,
+    CourseOffering,
+    Semester,
+)
 from app.models.user import User
 from app.models.notification import NotificationLog, NotificationPreference
 from app.services.notification_service import NotificationService, DHAKA, channels, next_push_time, utcnow
@@ -29,7 +35,7 @@ async def scan_classes(db, now=None):
             ClassSchedule.day_of_week.in_([day_name, day_name.lower(), day_name[:3], day_name[:3].lower()]),
             ClassSchedule.start_time >= lower, ClassSchedule.start_time <= upper,
             Semester.is_active.is_(True), Semester.start_date <= day, Semester.end_date >= day,
-            User.is_active.is_(True), CourseEnrollment.status.in_(["enrolled", "main", "improvement"]),
+            User.is_active.is_(True), CourseEnrollment.status.in_(ACTIVE_ENROLLMENT_STATUSES),
         )
         for schedule_id, start, user_id in (await db.execute(query)).all():
             occurrence = uuid.uuid5(OCCURRENCE_NAMESPACE, f"{schedule_id}:{day.isoformat()}")

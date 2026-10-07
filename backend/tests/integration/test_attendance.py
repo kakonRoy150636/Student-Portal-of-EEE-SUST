@@ -49,6 +49,22 @@ async def test_unmarked_session_counts_in_denominator(database):
     assert summary['total_classes'] == 2 and summary['percentage'] == 50.0
 
 
+async def test_student_summary_keeps_current_enrollment_attendance_percentage(database):
+    teacher, student = await database.user('teacher'), await database.user()
+    offering = await database.offering(teacher=teacher)
+    await database.enroll(student, offering)
+    for status in ('present', 'late', 'absent'):
+        await database.attendance(offering, teacher, [(student, status)])
+
+    async with database.sessions() as db:
+        summary = await AttendanceService(db).get_student_summary(student.id)
+
+    assert summary['total_classes'] == 3
+    assert summary['attended'] == 2
+    assert summary['percentage'] == 66.67
+    assert summary['per_course'][offering] == {'present': 2, 'total': 3}
+
+
 async def test_zero_sessions_not_ineligible_in_teacher_summary(database):
     student = await database.user()
     offering = await database.offering()

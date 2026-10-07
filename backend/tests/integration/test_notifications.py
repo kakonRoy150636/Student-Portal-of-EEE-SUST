@@ -66,6 +66,32 @@ async def test_scanner_ignores_inactive_user_and_outside_window(database):
     assert (await scan(database))[0] == 0
 
 
+async def test_scanner_excludes_dropped_and_historical_enrollments(database):
+    teacher, student = await database.user('teacher'), await database.user()
+    active_offering = await database.offering(teacher=teacher)
+    dropped_offering = await database.offering(teacher=teacher)
+    historical_semester = await database.conn.fetchval(
+        '''INSERT INTO semesters(title,start_date,end_date,is_active)
+           VALUES ($1,'2029-01-01','2029-06-30',false) RETURNING id''',
+        uuid.uuid4().hex,
+    )
+    historical_offering = await database.offering(semester=historical_semester, teacher=teacher)
+
+    for offering in (active_offering, dropped_offering, historical_offering):
+        await database.enroll(student, offering)
+        await database.schedule(offering, teacher, await database.room())
+    await database.conn.execute(
+        "UPDATE course_enrollments SET status='drop' WHERE student_id=$1 AND course_offering_id=$2",
+        student.id, dropped_offering,
+    )
+    await register(database, student)
+
+    assert (await scan(database))[0] == 1
+    assert await database.conn.fetchval(
+        'SELECT count(*) FROM notification_log WHERE user_id=$1', student.id
+    ) == 1
+
+
 async def test_scanner_crosses_dhaka_midnight(database):
     _, schedule = await arrange(database)
     await database.conn.execute("UPDATE class_schedules SET day_of_week='Tuesday',start_time='00:05',end_time='01:00' WHERE id=$1", schedule)

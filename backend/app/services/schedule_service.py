@@ -2,10 +2,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.academic import (
+    ACTIVE_ENROLLMENT_STATUSES,
     ClassSchedule,
     Course,
     CourseEnrollment,
     CourseOffering,
+    Semester,
 )
 from app.models.facility import Room
 from app.models.user import User
@@ -39,8 +41,13 @@ class ScheduleService:
                 CourseEnrollment,
                 CourseEnrollment.course_offering_id == CourseOffering.id,
             )
+            .join(Semester, CourseOffering.semester_id == Semester.id)
             .join(User, ClassSchedule.instructor_id == User.id, isouter=True)
-            .where(CourseEnrollment.student_id == user_id)
+            .where(
+                CourseEnrollment.student_id == user_id,
+                CourseEnrollment.status.in_(ACTIVE_ENROLLMENT_STATUSES),
+                Semester.is_active.is_(True),
+            )
             .order_by(ClassSchedule.day_of_week, ClassSchedule.start_time)
         )
         rows = (await self.db.execute(stmt)).all()
