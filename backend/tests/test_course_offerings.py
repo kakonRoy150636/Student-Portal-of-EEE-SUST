@@ -106,6 +106,19 @@ async def test_admin_offering_lifecycle_and_role_permissions(client, db):
     assert unpublished.json()["publication_status"] == "draft"
 
 
+async def test_admin_can_read_active_semesters_for_offering_management(client, db):
+    admin = await make_user(db, role=UserRole.SUPER_ADMIN)
+    await make_offering(db, admin=admin, active=True, published=False)
+
+    response = await client.get(
+        "/api/v1/course-offerings/semesters/active", headers=auth_header(admin)
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()
+    assert all(row["is_active"] for row in response.json())
+
+
 @pytest.mark.parametrize("role", [UserRole.STUDENT, UserRole.CR])
 async def test_students_see_only_published_active_offerings_and_enroll(client, db, role):
     student = await make_user(db, role=role)

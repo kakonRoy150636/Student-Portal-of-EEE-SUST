@@ -13,12 +13,16 @@ const LABELS: Record<string, string> = {
   career: 'Career Portal',
   ai: 'AI Assistant',
   admin: 'Admin Panel',
+  'admin/academic': 'Academic Management',
   notifications: 'Notifications',
 };
 
 export const Breadcrumbs = () => {
   const location = useLocation();
-  const slug = location.pathname.split('/').filter(Boolean)[0] ?? 'dashboard';
+  const segments = location.pathname.split('/').filter(Boolean);
+  const slug = location.pathname === '/admin/academic'
+    ? segments.join('/')
+    : segments[0] ?? 'dashboard';
   const label = LABELS[slug] ?? slug.replace('-', ' ');
 
   return (

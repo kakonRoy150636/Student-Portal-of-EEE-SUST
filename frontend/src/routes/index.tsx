@@ -21,6 +21,7 @@ const ProjectHubPage = lazy(() => import('@/features/project-hub/pages/ProjectHu
 const CareerPortalPage = lazy(() => import('@/features/career/pages/CareerPortalPage'));
 const AIAssistantPage = lazy(() => import('@/features/ai-assistant/pages/AIAssistantPage'));
 const AdminPanelPage = lazy(() => import('@/features/admin/pages/AdminPanelPage'));
+const AdminAcademicPage = lazy(() => import('@/features/admin/pages/AdminAcademicPage'));
 const NotificationsPage = lazy(() => import('@/features/notifications/pages/NotificationsPage'));
 const AlumniSectionPage = lazy(() => import('@/features/alumni/pages/AlumniSectionPage'));
 const AlumniProfilePage = lazy(() => import('@/features/alumni/pages/AlumniProfilePage'));
@@ -59,6 +60,7 @@ export const router = createBrowserRouter([
       { path: 'career', element: <ProtectedRoute roles={[UserRole.STUDENT, UserRole.CR]}><Suspense fallback={<Fallback />}><CareerPortalPage /></Suspense></ProtectedRoute> },
       { path: 'ai', element: <Suspense fallback={<Fallback />}><AIAssistantPage /></Suspense> },
       { path: 'admin', element: <ProtectedRoute roles={[UserRole.SUPER_ADMIN]}><Suspense fallback={<Fallback />}><AdminPanelPage /></Suspense></ProtectedRoute> },
+      { path: 'admin/academic', element: <ProtectedRoute roles={[UserRole.SUPER_ADMIN]}><Suspense fallback={<Fallback />}><AdminAcademicPage /></Suspense></ProtectedRoute> },
       { path: 'notifications', element: <Suspense fallback={<Fallback />}><NotificationsPage /></Suspense> },
       { path: 'alumni', element: <Suspense fallback={<Fallback />}><AlumniSectionPage /></Suspense> },
       { path: 'alumni/directory', element: <Suspense fallback={<Fallback />}><AlumniSectionPage /></Suspense> },

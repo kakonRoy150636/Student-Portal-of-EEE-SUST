@@ -135,7 +135,7 @@ async def list_available_course_offerings(
 
 @router.get("/semesters/active", response_model=list[SemesterResponse])
 async def list_active_semesters(
-    user: User = Depends(RequireRole(STUDENT_OR_CR)),
+    user: User = Depends(RequireRole([*STUDENT_OR_CR, UserRole.SUPER_ADMIN])),
     db: AsyncSession = Depends(get_db),
 ):
     return await CourseOfferingService(db).list_active_semesters()

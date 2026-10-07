@@ -69,6 +69,7 @@ export const NAV_SECTIONS: NavSection[] = [
     group: 'Administration',
     items: [
       { name: 'Admin Panel', path: '/admin', icon: Shield, hint: 'Approvals and catalogue', roles: [UserRole.SUPER_ADMIN] },
+      { name: 'Academic Management', path: '/admin/academic', icon: BookOpen, hint: 'Offerings and teacher approvals', roles: [UserRole.SUPER_ADMIN] },
     ],
   },
 ];

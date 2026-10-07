@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -36,7 +37,8 @@ export default function AdminPanelPage() {
       <PageHeader
         kicker="Administration"
         title="System administration"
-        description="Approve pending teacher, CR, ER and alumni accounts. Catalogue work stays on the dashboard."
+        description="Approve pending teacher, CR, ER and alumni accounts, or manage course offerings and teacher assignments."
+        action={<Link to="/admin/academic" className="inline-flex h-10 items-center rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold text-[var(--text)] hover:bg-[var(--surface-muted)]">Academic management</Link>}
       />
       {pending.isLoading && <PageSkeleton cards={0} rows={4} />}
       {pending.isError && (

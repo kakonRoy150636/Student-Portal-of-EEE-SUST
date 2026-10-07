@@ -6,6 +6,16 @@ export interface Course {
   type: string;
 }
 
+/** Shape returned by GET /courses (the catalogue endpoint calls credits `credits`). */
+export interface CourseCatalogueItem {
+  id: string;
+  course_code: string;
+  title: string;
+  credits: number;
+  type: string;
+  description: string | null;
+}
+
 export interface Semester {
   id: number;
   title: string;
@@ -38,6 +48,23 @@ export interface TeacherAssignmentRequest {
 
 export interface TeacherAssignmentRequestFilters {
   status?: TeacherAssignmentRequestStatus;
+}
+
+export interface CourseOfferingCreatePayload {
+  course_id: string;
+  semester_id: number;
+}
+
+export interface CourseOfferingUpdatePayload {
+  course_id?: string;
+  semester_id?: number;
+}
+
+export type AssignmentDecision = 'approve' | 'reject';
+
+export interface AssignmentDecisionPayload {
+  decision: AssignmentDecision;
+  rejection_reason?: string | null;
 }
 
 export interface RosterEntry {
