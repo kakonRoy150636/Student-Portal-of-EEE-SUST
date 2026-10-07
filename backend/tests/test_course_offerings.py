@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
@@ -106,8 +106,9 @@ async def test_admin_offering_lifecycle_and_role_permissions(client, db):
     assert unpublished.json()["publication_status"] == "draft"
 
 
-async def test_students_see_only_published_active_offerings_and_enroll(client, db):
-    student = await make_user(db, role=UserRole.STUDENT)
+@pytest.mark.parametrize("role", [UserRole.STUDENT, UserRole.CR])
+async def test_students_see_only_published_active_offerings_and_enroll(client, db, role):
+    student = await make_user(db, role=role)
     draft, _, _ = await make_offering(db, published=False)
     inactive, _, _ = await make_offering(db, active=False, published=True)
     published, course, semester = await make_offering(db, published=True, credits=1.5)
@@ -144,6 +145,7 @@ async def test_students_see_only_published_active_offerings_and_enroll(client, d
         f"/api/v1/course-offerings/{published.id}/enroll", headers=auth_header(student)
     )
     assert duplicate.status_code == 409
+    assert await db.scalar(select(func.count()).select_from(CourseEnrollment)) == 1
 
 
 async def test_drop_reselect_ownership_and_active_credits(client, db):
@@ -169,6 +171,19 @@ async def test_drop_reselect_ownership_and_active_credits(client, db):
     )
     assert dropped.status_code == 200
     assert dropped.json()["status"] == "drop"
+    assert dropped.json()["dropped_at"] is not None
+    assert datetime.fromisoformat(dropped.json()["enrolled_at"]).replace(tzinfo=None) == (
+        datetime.fromisoformat(enrolled.json()["enrolled_at"]).replace(tzinfo=None)
+    )  # SQLite reads timestamps without the UTC timezone suffix.
+
+    duplicate_drop = await client.post(
+        f"/api/v1/course-offerings/enrollments/{enrollment_id}/drop", headers=auth_header(student),
+    )
+    assert duplicate_drop.status_code == 409
+    forbidden_reselect = await client.post(
+        f"/api/v1/course-offerings/enrollments/{enrollment_id}/reselect", headers=auth_header(other),
+    )
+    assert forbidden_reselect.status_code == 403
 
     credits_after_drop = await client.get(
         "/api/v1/course-offerings/enrollments/me/credits", headers=auth_header(student)
@@ -184,6 +199,16 @@ async def test_drop_reselect_ownership_and_active_credits(client, db):
     assert reselected.json()["id"] == enrollment_id
     assert reselected.json()["status"] == "improvement"
     assert reselected.json()["credit_hours"] == 3.0
+    assert reselected.json()["dropped_at"] is None
+    assert datetime.fromisoformat(reselected.json()["enrolled_at"]).replace(tzinfo=None) == (
+        datetime.fromisoformat(enrolled.json()["enrolled_at"]).replace(tzinfo=None)
+    )
+    assert await db.scalar(select(func.count()).select_from(CourseEnrollment)) == 1
+
+    duplicate_reselect = await client.post(
+        f"/api/v1/course-offerings/enrollments/{enrollment_id}/reselect", headers=auth_header(student),
+    )
+    assert duplicate_reselect.status_code == 409
 
     credits = await client.get(
         "/api/v1/course-offerings/enrollments/me/credits", headers=auth_header(student)
@@ -197,6 +222,29 @@ async def test_drop_reselect_ownership_and_active_credits(client, db):
         "/api/v1/course-offerings/enrollments/me/credits", headers=auth_header(student)
     )
     assert changed_credits.json() == {"active_credit_total": 4.5}
+
+
+@pytest.mark.parametrize("unavailable", ["draft", "inactive"])
+async def test_reselect_requires_current_published_active_offering(client, db, unavailable):
+    student = await make_user(db)
+    offering, _, semester = await make_offering(db)
+    response = await client.post(f"/api/v1/course-offerings/{offering.id}/enroll", headers=auth_header(student))
+    enrollment_id = response.json()["id"]
+    await client.post(f"/api/v1/course-offerings/enrollments/{enrollment_id}/drop", headers=auth_header(student))
+    if unavailable == "draft":
+        offering.publication_status = "draft"
+    else:
+        semester.is_active = False
+    await db.commit()
+
+    response = await client.post(
+        f"/api/v1/course-offerings/enrollments/{enrollment_id}/reselect", headers=auth_header(student),
+    )
+    assert response.status_code == 409
+    persisted = (await client.get("/api/v1/course-offerings/enrollments/me", headers=auth_header(student))).json()
+    assert len(persisted) == 1
+    assert persisted[0]["id"] == enrollment_id
+    assert persisted[0]["status"] == "drop"
 
 
 async def test_teacher_request_approval_controls_roster_access(client, db):
@@ -323,6 +371,31 @@ async def test_assignment_approval_rolls_back_request_and_assignment_together(db
             CourseOfferingTeacher.teacher_id == teacher_id,
         )
     ) is None
+
+
+@pytest.mark.parametrize("request_status", [None, "pending", "approved", "rejected"])
+async def test_roster_checks_decision_on_existing_teacher_assignment(client, db, request_status):
+    teacher = await make_user(db, role=UserRole.TEACHER)
+    student = await make_user(db)
+    offering, _, _ = await make_offering(db)
+    db.add(CourseOfferingTeacher(course_offering_id=offering.id, teacher_id=teacher.id))
+    db.add(CourseEnrollment(course_offering_id=offering.id, student_id=student.id))
+    if request_status is not None:
+        db.add(TeacherAssignmentRequest(
+            course_offering_id=offering.id, teacher_id=teacher.id, status=request_status,
+        ))
+    await db.commit()
+
+    response = await client.get(
+        f"/api/v1/course-offerings/{offering.id}/roster", headers=auth_header(teacher),
+    )
+    # A legacy explicit assignment remains a grant; a pending/rejected request
+    # must never override the approval boundary merely because a link exists.
+    if request_status in ("pending", "rejected"):
+        assert response.status_code == 403
+    else:
+        assert response.status_code == 200, response.text
+        assert [row["student_id"] for row in response.json()] == [str(student.id)]
 
 
 async def test_registration_selection_rollback_uses_enrollment_service(client, db):

@@ -171,10 +171,12 @@ class CourseOfferingService:
                 self.publish_pending_notifications()
             return result
         except IntegrityError as exc:
+            self._pending_notification_batches.clear()
             if commit:
                 await self.db.rollback()
             raise ResourceConflictException(conflict_message) from exc
         except Exception:
+            self._pending_notification_batches.clear()
             if commit:
                 await self.db.rollback()
             raise
@@ -184,6 +186,7 @@ class CourseOfferingService:
             select(CourseOffering)
             .where(CourseOffering.id == offering_id)
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if not offering:
             raise NotFoundException("Course offering not found.")
@@ -618,21 +621,33 @@ class CourseOfferingService:
         *,
         registration: bool = False,
     ) -> dict[uuid.UUID, CourseOffering]:
+        # Lock all offerings before semesters, then enrollments. A joined
+        # FOR UPDATE can interleave offering/semester locks across selections.
         rows = (
             await self.db.execute(
                 select(CourseOffering)
-                .join(Semester, Semester.id == CourseOffering.semester_id)
-                .where(
-                    CourseOffering.id.in_(offering_ids),
-                    CourseOffering.publication_status == OfferingPublicationStatus.PUBLISHED.value,
-                    Semester.is_active.is_(True),
-                )
+                .where(CourseOffering.id.in_(offering_ids))
                 .order_by(CourseOffering.id)
                 .with_for_update()
+                .execution_options(populate_existing=True)
             )
         ).scalars().all()
         offerings = {offering.id: offering for offering in rows}
-        if len(offerings) != len(set(offering_ids)):
+        semesters = {
+            semester.id: semester for semester in (await self.db.scalars(
+                select(Semester)
+                .where(Semester.id.in_({offering.semester_id for offering in rows}))
+                .order_by(Semester.id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )).all()
+        }
+        if len(offerings) != len(set(offering_ids)) or any(
+            offering.publication_status != OfferingPublicationStatus.PUBLISHED.value
+            or offering.semester_id not in semesters
+            or not semesters[offering.semester_id].is_active
+            for offering in rows
+        ):
             message = "All selected course offerings must be published in the active semester."
             raise DomainException(message, status_code=422 if registration else 409)
         return offerings
@@ -663,7 +678,9 @@ class CourseOfferingService:
                         CourseEnrollment.student_id == student_id,
                         CourseEnrollment.course_offering_id.in_(offering_ids),
                     )
+                    .order_by(CourseEnrollment.id)
                     .with_for_update()
+                    .execution_options(populate_existing=True)
                 )
             ).scalars().all()
             existing = {row.course_offering_id: row for row in existing_rows}
@@ -709,11 +726,29 @@ class CourseOfferingService:
         self,
         enrollment_id: int,
         student_id: uuid.UUID,
+        *,
+        require_eligible_offering: bool = False,
     ) -> CourseEnrollment:
+        # Check ownership without locking/caching an enrollment before its
+        # offering. Drop flushes can also acquire a foreign-key lock there.
+        owner = (await self.db.execute(
+            select(CourseEnrollment.course_offering_id, CourseEnrollment.student_id)
+            .where(CourseEnrollment.id == enrollment_id)
+        )).one_or_none()
+        if not owner:
+            raise NotFoundException("Enrollment not found.")
+        if owner.student_id != student_id:
+            raise ForbiddenException("You may only modify your own enrollments.")
+        if require_eligible_offering:
+            await self._enrollment_offerings([owner.course_offering_id])
+        else:
+            await self._offering_for_update(owner.course_offering_id)
+
         enrollment = await self.db.scalar(
             select(CourseEnrollment)
             .where(CourseEnrollment.id == enrollment_id)
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if not enrollment:
             raise NotFoundException("Enrollment not found.")
@@ -742,10 +777,11 @@ class CourseOfferingService:
         enrollment_type: str = EnrollmentStatus.ENROLLED.value,
     ) -> CourseEnrollment:
         async def operation():
-            enrollment = await self._owned_enrollment_for_update(enrollment_id, student_id)
+            enrollment = await self._owned_enrollment_for_update(
+                enrollment_id, student_id, require_eligible_offering=True,
+            )
             if enrollment.status != EnrollmentStatus.DROP.value:
                 raise ResourceConflictException("Only dropped enrollments can be reselected.")
-            await self._enrollment_offerings([enrollment.course_offering_id])
             enrollment.reselect(enrollment_type)
             await self.db.flush()
             await self._notify_enrollment(enrollment)

@@ -3,12 +3,16 @@ from typing import List
 import jwt
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.user import User, UserRole
-from app.models.academic import CourseOfferingTeacher
+from app.models.academic import (
+    CourseOfferingTeacher,
+    TeacherAssignmentRequest,
+    TeacherAssignmentRequestStatus,
+)
 
 security_scheme = HTTPBearer(auto_error=True)
 
@@ -154,9 +158,24 @@ async def verify_course_teacher(
         status_code=status.HTTP_403_FORBIDDEN, detail="Teacher role required."
     )
 
-  stmt = select(CourseOfferingTeacher).where(
-      CourseOfferingTeacher.course_offering_id == course_offering_id,
-      CourseOfferingTeacher.teacher_id == user.id,
+  stmt = (
+      select(CourseOfferingTeacher)
+      .outerjoin(
+          TeacherAssignmentRequest,
+          and_(
+              TeacherAssignmentRequest.course_offering_id
+              == CourseOfferingTeacher.course_offering_id,
+              TeacherAssignmentRequest.teacher_id == CourseOfferingTeacher.teacher_id,
+          ),
+      )
+      .where(
+          CourseOfferingTeacher.course_offering_id == course_offering_id,
+          CourseOfferingTeacher.teacher_id == user.id,
+          or_(
+              TeacherAssignmentRequest.id.is_(None),
+              TeacherAssignmentRequest.status == TeacherAssignmentRequestStatus.APPROVED.value,
+          ),
+      )
   )
   result = await db.execute(stmt)
   if not result.scalar_one_or_none():
@@ -166,4 +185,3 @@ async def verify_course_teacher(
     )
 
   return user
-  
