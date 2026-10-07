@@ -19,6 +19,36 @@ export type TeacherAssignmentRequestStatus = 'pending' | 'approved' | 'rejected'
 export type EnrollmentStatus = 'enrolled' | 'main' | 'improvement' | 'drop';
 export type ActiveEnrollmentStatus = Exclude<EnrollmentStatus, 'drop'>;
 
+export interface TeacherAssignmentRequest {
+  id: string;
+  course_offering_id: string;
+  teacher_id: string;
+  teacher_name: string;
+  course_code: string;
+  course_title: string;
+  semester_id: number;
+  semester_title: string;
+  status: TeacherAssignmentRequestStatus;
+  decided_by: string | null;
+  decided_at: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeacherAssignmentRequestFilters {
+  status?: TeacherAssignmentRequestStatus;
+}
+
+export interface RosterEntry {
+  student_id: string;
+  identifier: string;
+  full_name: string;
+  email: string;
+  status: ActiveEnrollmentStatus;
+  credit_hours: number;
+}
+
 export interface AssignedCourseTeacher {
   teacher_id: string;
   teacher_name: string;

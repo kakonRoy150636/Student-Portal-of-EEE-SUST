@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 const LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
   schedule: 'Schedule',
+  'teacher-assignment': 'Course Assignment',
   attendance: 'Attendance',
   resources: 'Resources',
   labs: 'Lab Management',

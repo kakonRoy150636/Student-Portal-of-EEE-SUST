@@ -35,6 +35,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, hint: 'Overview and today’s work' },
       { name: 'Course Selection', path: '/course-selection', icon: ListChecks, hint: 'Enrollments and active credits', roles: [UserRole.STUDENT, UserRole.CR] },
+      { name: 'Course Assignment', path: '/teacher-assignment', icon: BookOpen, hint: 'Teaching requests and rosters', roles: [UserRole.TEACHER] },
       { name: 'Schedule', path: '/schedule', icon: Calendar, hint: 'Class routine', roles: [UserRole.STUDENT, UserRole.CR, UserRole.TEACHER] },
       { name: 'Attendance', path: '/attendance', icon: CheckSquare, hint: 'Attendance records', roles: [UserRole.STUDENT, UserRole.CR, UserRole.TEACHER] },
       { name: 'Resources', path: '/resources', icon: BookOpen, hint: 'Notes and course files' },
