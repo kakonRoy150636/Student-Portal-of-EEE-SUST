@@ -22,6 +22,8 @@ It brings course planning, attendance, room and lab booking, resources, projects
 ## Product Preview
 
 The screenshots below are captured from the running local application, not mockups.
+They show the same role-aware workflow from sign-in to academic administration and
+teacher assignment.
 
 ### Sign in
 
@@ -33,12 +35,26 @@ The screenshots below are captured from the running local application, not mocku
 
 The student home combines a campus-led visual introduction with live academic metrics, quick actions, today's classes, and attendance status. Demo credentials are intentionally not published in the repository.
 
+### Admin academic management
+
+![SUST EEE admin academic management](docs/screenshots/admin-academic-management.png)
+
+Admins can create or edit offerings, publish or unpublish them, and approve or
+reject teacher assignment requests from one protected workspace.
+
+### Teacher course assignment
+
+![SUST EEE teacher course assignment](docs/screenshots/teacher-course-assignment.png)
+
+Teachers can see available offerings, assigned colleagues, request decisions, and
+approved-course roster access without relying on separate messages or spreadsheets.
+
 ## What It Includes
 
 | Area | Highlights |
 | --- | --- |
 | Authentication | JWT access tokens, rotated refresh tokens, HttpOnly refresh cookies, and RBAC |
-| Academic operations | Published semester course selection, enrollment lifecycle, schedules, attendance, credit-hour validation, and department dashboards |
+| Academic operations | Course offerings, publish controls, teacher assignment approvals, semester course selection, enrollment lifecycle, schedules, attendance, credit-hour validation, and department dashboards |
 | Booking | Room and lab booking with PostgreSQL GiST conflict prevention |
 | Resources | Presigned S3/MinIO uploads and PostgreSQL full-text search |
 | Projects | Capstone lifecycle, supervisor workflows, and GitHub integration |
@@ -46,6 +62,34 @@ The student home combines a campus-led visual introduction with live academic me
 | Notifications | Firebase Cloud Messaging with Celery worker and Beat scheduling |
 | AI assistant | Cited Gemini answers, pgvector/full-text RRF retrieval, safe abstention and Redis quota/cost caps |
 | Alumni portal | Standalone batch-aware network, career timelines, privacy-safe directory search, CSV import, verification, events, mentorship, scholarships, news, and gallery foundations |
+
+## Why it is better than the manual process
+
+The portal replaces disconnected spreadsheets, chat messages, paper lists, and
+separate file stores with one auditable workflow.
+
+| Manual process | SUST EEE Portal advantage |
+| --- | --- |
+| Course offerings maintained in spreadsheets | Admin-owned offering records with draft/published status and server-derived credits |
+| Teacher requests sent through chat or email | Pending, approved, and rejected states with an approval trail and optional rejection reason |
+| Student rosters copied between files | Approved teachers open the current roster directly from the assigned course |
+| Attendance and schedules checked in separate places | Role-scoped dashboard, routine, attendance, and notifications stay connected |
+| Room bookings resolved by back-and-forth messages | Database conflict constraints prevent overlapping reservations |
+| Files shared through uncontrolled links | Presigned storage URLs, ownership checks, and searchable resources |
+| Trust based on frontend-only controls | JWT/RBAC, backend authorization, and PostgreSQL constraints enforce the rules |
+
+### Core advantages
+
+- **One source of truth:** courses, offerings, enrollments, requests, rosters, and
+  credits come from protected APIs and database records.
+- **Role-aware by design:** students, teachers, alumni, lab assistants, and admins
+  see only the workflows relevant to them.
+- **Fewer avoidable errors:** duplicate enrollments, conflicting bookings, stale
+  rosters, and fabricated dashboard numbers are handled by backend rules.
+- **Clearer decisions:** loading, empty, error, pending, approved, rejected, and
+  published states are visible instead of hidden in a spreadsheet or chat thread.
+- **Ready to operate:** Docker Compose, Alembic migrations, Redis/Celery jobs,
+  automated checks, and focused tests make the system repeatable.
 
 ## Dashboard Experience
 
@@ -445,8 +489,9 @@ Use this short path when presenting the project:
 2. Point out the live academic snapshot and explain where each value comes from.
 3. Open today's schedule and attendance to demonstrate role-scoped data.
 4. Use a quick action to open resources or the AI assistant.
-5. Sign in as an admin to show approval queues and department-level summaries.
-6. Sign in as an alumni user to show the verified profile and directory experience.
+5. Sign in as a teacher to show course requests, approval states, and roster access.
+6. Sign in as an admin to show offering publication, teacher approval queues, and department-level summaries.
+7. Sign in as an alumni user to show the verified profile and directory experience.
 
 ## Engineering Quality
 
