@@ -7,13 +7,13 @@ from unittest.mock import Mock
 
 import pytest
 
-from app.models.notification import NotificationPreference
 from app.services.course_offering_service import (
     COURSE_ASSIGNMENT_NOTIFICATION,
     COURSE_ENROLLMENT_NOTIFICATION,
     CourseOfferingService,
     assignment_approval_event_id,
 )
+from app.services.notification_dispatch import deliver_batch
 from app.services.notification_service import NotificationService
 
 pytestmark = pytest.mark.asyncio
@@ -43,6 +43,7 @@ async def test_assignment_approval_notifies_active_students_and_crs_only(api, da
     student = await database.user("student")
     cr = await database.user("cr")
     inactive_student = await database.user("student", active=False)
+    inactive_cr = await database.user("cr", active=False)
     offering = await database.offering(published=True)
     request_id = await pending_request(database, offering, teacher)
 
@@ -59,6 +60,9 @@ async def test_assignment_approval_notifies_active_students_and_crs_only(api, da
     assert await database.conn.fetchval(
         "SELECT count(*) FROM notifications WHERE recipient_id=$1", inactive_student.id
     ) == 0
+    assert await database.conn.fetchval(
+        "SELECT count(*) FROM notifications WHERE recipient_id=$1", inactive_cr.id
+    ) == 0
 
     for user in (student, cr):
         inbox = await api.get("/api/v1/notifications", headers=database.headers(user))
@@ -73,6 +77,9 @@ async def test_assignment_approval_notifies_active_students_and_crs_only(api, da
 async def test_same_approval_event_is_idempotent(database):
     student = await database.user("student")
     event_id = uuid.uuid4()
+    async with database.sessions() as db:
+        await NotificationService(db).register_device(student.id, "assignment-idempotency-device")
+
     async with database.sessions() as db, db.begin():
         first = await NotificationService(db).enqueue(
             student.id, event_id, COURSE_ASSIGNMENT_NOTIFICATION, "high"
@@ -91,6 +98,10 @@ async def test_same_approval_event_is_idempotent(database):
     assert await database.conn.fetchval(
         "SELECT count(*) FROM notifications WHERE recipient_id=$1", student.id
     ) == 1
+    assert await database.conn.fetchval(
+        "SELECT count(*) FROM notification_batches WHERE user_id=$1", student.id
+    ) == 1
+    assert await database.conn.fetchval("SELECT count(*) FROM notification_deliveries") == 1
 
 
 async def test_enrollment_notifies_student_and_active_assigned_teachers(api, database):
@@ -118,7 +129,9 @@ async def test_enrollment_notifies_student_and_active_assigned_teachers(api, dat
     student_inbox = await api.get("/api/v1/notifications", headers=database.headers(student))
     teacher_inbox = await api.get("/api/v1/notifications", headers=database.headers(teacher))
     assert len(student_inbox.json()) == len(teacher_inbox.json()) == 1
-    assert student_inbox.json()[0]["data_payload"]["type"] == COURSE_ENROLLMENT_NOTIFICATION
+    expected_payload = {"type": COURSE_ENROLLMENT_NOTIFICATION, "url": "/notifications"}
+    assert student_inbox.json()[0]["data_payload"] == expected_payload
+    assert teacher_inbox.json()[0]["data_payload"] == expected_payload
 
     async with database.sessions() as db:
         await CourseOfferingService(db).drop(enrollment_id, student.id)
@@ -137,18 +150,88 @@ async def test_enrollment_notifies_student_and_active_assigned_teachers(api, dat
     ) == 2
 
 
-async def test_enrollment_preferences_suppress_inbox_and_push_for_one_recipient(database):
+async def test_enrollment_notifies_only_active_approved_assigned_teachers(database):
+    student = await database.user("student")
+    approved = await database.user("teacher")
+    pending = await database.user("teacher")
+    rejected = await database.user("teacher")
+    inactive_approved = await database.user("teacher", active=False)
+    non_teacher = await database.user("student")
+    offering = await database.offering(published=True)
+
+    for teacher in (approved, pending, rejected, inactive_approved, non_teacher):
+        await assigned_teacher(database, offering, teacher)
+    for teacher, status in (
+        (approved, "approved"),
+        (pending, "pending"),
+        (rejected, "rejected"),
+        (inactive_approved, "approved"),
+    ):
+        await database.conn.execute(
+            """INSERT INTO teacher_assignment_requests(course_offering_id, teacher_id, status)
+               VALUES ($1, $2, $3)""",
+            offering,
+            teacher.id,
+            status,
+        )
+
+    async with database.sessions() as db:
+        await CourseOfferingService(db).enroll(student.id, offering)
+
+    rows = await database.conn.fetch(
+        "SELECT user_id FROM notification_log WHERE type=$1",
+        COURSE_ENROLLMENT_NOTIFICATION,
+    )
+    assert {row["user_id"] for row in rows} == {student.id, approved.id}
+    assert await database.conn.fetchval(
+        "SELECT count(*) FROM notifications WHERE recipient_id=$1", pending.id
+    ) == 0
+    assert await database.conn.fetchval(
+        "SELECT count(*) FROM notifications WHERE recipient_id=$1", rejected.id
+    ) == 0
+    assert await database.conn.fetchval(
+        "SELECT count(*) FROM notifications WHERE recipient_id=$1", inactive_approved.id
+    ) == 0
+    assert await database.conn.fetchval(
+        "SELECT count(*) FROM notifications WHERE recipient_id=$1", non_teacher.id
+    ) == 0
+
+
+async def test_initial_dropped_enrollment_creates_no_notification(database):
+    student = await database.user("student")
+    teacher = await database.user("teacher")
+    offering = await database.offering(published=True, teacher=teacher)
+
+    async with database.sessions() as db:
+        enrollment = await CourseOfferingService(db).enroll_many(
+            student.id, [(offering, "drop")],
+        )
+
+    assert enrollment[0].status == "drop"
+    assert await database.conn.fetchval(
+        "SELECT count(*) FROM notification_log WHERE type=$1", COURSE_ENROLLMENT_NOTIFICATION
+    ) == 0
+    assert await database.conn.fetchval("SELECT count(*) FROM notifications") == 0
+    assert await database.conn.fetchval("SELECT count(*) FROM notification_batches") == 0
+    assert await database.conn.fetchval("SELECT count(*) FROM notification_deliveries") == 0
+
+
+async def test_enrollment_preferences_suppress_inbox_and_push_for_one_recipient(api, database):
     student = await database.user("student")
     teacher = await database.user("teacher")
     offering = await database.offering(published=True)
     await assigned_teacher(database, offering, teacher)
 
-    async with database.sessions() as db:
-        db.add(NotificationPreference(
-            user_id=student.id,
-            per_type={COURSE_ENROLLMENT_NOTIFICATION: {"push": False, "in_app": False}},
-        ))
-        await db.commit()
+    preferences = await api.put(
+        "/api/v1/notifications/preferences",
+        headers=database.headers(student),
+        json={"per_type": {COURSE_ENROLLMENT_NOTIFICATION: {"push": False, "in_app": False}}},
+    )
+    assert preferences.status_code == 200, preferences.text
+    assert preferences.json()["per_type"][COURSE_ENROLLMENT_NOTIFICATION] == {
+        "push": False,
+        "in_app": False,
+    }
 
     async with database.sessions() as db:
         await CourseOfferingService(db).enroll(student.id, offering)
@@ -168,6 +251,30 @@ async def test_enrollment_preferences_suppress_inbox_and_push_for_one_recipient(
     assert await database.conn.fetchval(
         "SELECT count(*) FROM notifications WHERE recipient_id=$1", teacher.id
     ) == 1
+
+
+async def test_course_enrollment_push_uses_safe_internal_url(database, monkeypatch):
+    from app.tasks import notifications as tasks
+
+    student = await database.user("student")
+    offering = await database.offering(published=True)
+    async with database.sessions() as db:
+        await NotificationService(db).register_device(student.id, "course-enrollment-safe-url-device")
+
+    published = Mock()
+    monkeypatch.setattr(tasks.deliver_notification, "delay", published)
+    async with database.sessions() as db:
+        await CourseOfferingService(db).enroll(student.id, offering)
+
+    published.assert_called_once()
+    batch_id = uuid.UUID(published.call_args.args[0])
+    sender = Mock(return_value="fcm-id")
+    await deliver_batch(database.sessions, batch_id, sender=sender)
+
+    assert sender.call_args.kwargs["data"]["type"] == COURSE_ENROLLMENT_NOTIFICATION
+    assert sender.call_args.kwargs["data"]["url"] == "/notifications"
+    assert sender.call_args.kwargs["data"]["url"].startswith("/")
+    assert not sender.call_args.kwargs["data"]["url"].startswith("//")
 
 
 async def test_committed_push_batch_reuses_existing_delivery_task(database, monkeypatch):

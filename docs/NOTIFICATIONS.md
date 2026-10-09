@@ -69,6 +69,29 @@ Course workflow producers use the same durable outbox:
 - these notifications use the safe `/notifications` internal URL and contain
   no course names, identifiers, grades or client-supplied text.
 
+### Course workflow contract
+
+| Event | Recipients | When it is created |
+|---|---|---|
+| `course_assignment` | Every active `STUDENT` and `CR` account | A pending teacher assignment request is approved |
+| `course_enrollment` | The student and every active teacher assigned to the offering through an approved request (legacy assignments without a request remain supported) | An enrollment or reselection becomes `enrolled`, `main`, or `improvement` |
+
+Dropped enrollments do not create an active-enrollment event. An initial `drop`
+selection is persisted without a notification, `drop()` only changes the
+enrollment state, and reselection creates one new event for the new active
+transition. All recipients of one transition share the same deterministic event
+UUID; the recipient/event/type uniqueness constraint prevents duplicate inbox
+rows, batches, and device-delivery rows on retries.
+
+Both course event types use fixed generic templates and the relative URL
+`/notifications` in the in-app payload and FCM data. The URL is never accepted
+from a caller, and no course title, user identifier, email, grade, or
+client-supplied rejection text is copied into notification content. Per-type
+preferences are applied independently for every recipient: disabling both
+channels completes the log without an inbox item or push batch; in-app-only
+still reaches the inbox/SSE stream; push-enabled recipients use the normal
+high-priority outbox and delivery state machine.
+
 UTC-aware timestamps are stored; Celery's timezone and scheduled wall-clock
 logic use Asia/Dhaka. A minute outbox recovery task republishes due pending
 batches if a producer committed the DB transaction but failed to publish to Redis.
@@ -164,6 +187,13 @@ device upsert/last_seen, token deletion, per-type channels, high/medium/low,
 quiet hours and delayed digests, provider error classification, bounded retries,
 worker interruption, broker publication failure recovery, singleton Beat ownership,
 scanner indexes and migration backfill/downgrade/schema parity.
+
+Course workflow coverage additionally checks the exact active `STUDENT`/`CR`
+assignment recipient set, approved-teacher enrollment filtering, student and
+teacher inbox rows, initial-drop suppression, reselection transitions,
+preference API readback, deterministic idempotency including outbox rows, safe
+`/notifications` URLs in inbox and FCM payloads, and transaction rollback when
+notification enqueueing fails.
 
 Run `docker-compose.test.yml` as documented in README. Transport/Celery unit
 tests additionally live in `backend/tests/test_notification_transport.py`.
