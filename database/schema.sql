@@ -69,9 +69,14 @@ CREATE TABLE password_reset_tokens (
 CREATE TABLE semesters (
     id SERIAL PRIMARY KEY,
     title VARCHAR(50) NOT NULL UNIQUE,
+    target_term VARCHAR(4),
     is_active BOOLEAN NOT NULL DEFAULT FALSE,
     start_date DATE NOT NULL,
-    end_date DATE NOT NULL
+    end_date DATE NOT NULL,
+    CONSTRAINT ck_semesters_target_term CHECK (
+        target_term IS NULL OR target_term IN
+        ('1-1', '1-2', '2-1', '2-2', '3-1', '3-2', '4-1', '4-2')
+    )
 );
 CREATE INDEX ix_semesters_active ON semesters (id) WHERE is_active = TRUE;
 

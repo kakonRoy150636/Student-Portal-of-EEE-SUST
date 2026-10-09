@@ -19,7 +19,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.skipif(not ADMIN_URL, reason="Req
 BACKEND = Path(__file__).resolve().parents[1]
 SCHEMA = BACKEND.parent / "database" / "schema.sql"
 BASELINE = "20260911_0001"
-HEAD = "20261005_0010"
+HEAD = "20261010_0011"
 PREVIOUS_HEAD = "20261005_0009"
 
 

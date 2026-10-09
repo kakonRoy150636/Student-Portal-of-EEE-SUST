@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { teacherAssignmentApi } from '../api/teacherAssignmentApi';
 import type {
+  CourseOfferingProvidePayload,
   TeacherAssignmentRequestFilters,
   TeacherAssignmentRequestStatus,
 } from '@/types/academic';
 
 export const teacherAssignmentQueryKeys = {
   all: ['teacher-assignment'] as const,
+  activeSemesters: ['teacher-assignment', 'active-semesters'] as const,
   available: ['teacher-assignment', 'available'] as const,
   assignmentRequests: ['teacher-assignment', 'assignment-requests'] as const,
   assignmentRequestList: (status?: TeacherAssignmentRequestStatus) =>
@@ -16,6 +18,17 @@ export const teacherAssignmentQueryKeys = {
     ['teacher-assignment', 'assignment-requests', 'offering', offeringId] as const,
   roster: (offeringId: string) => ['teacher-assignment', 'roster', offeringId] as const,
 };
+
+export function useTeacherActiveSemesters() {
+  return useQuery({
+    queryKey: teacherAssignmentQueryKeys.activeSemesters,
+    queryFn: async ({ signal }) => (await teacherAssignmentApi.getActiveSemesters(signal)).data,
+    retry: false,
+  });
+}
+
+// Keep a short name available for callers that only need the role-scoped list.
+export const useActiveSemesters = useTeacherActiveSemesters;
 
 export function useAvailableOfferings() {
   return useQuery({
@@ -79,6 +92,27 @@ export function useRequestAssignment() {
         queryClient.invalidateQueries({
           queryKey: teacherAssignmentQueryKeys.offeringAssignmentRequests(offeringId),
         }),
+      ]);
+    },
+  });
+}
+
+export function useProvideCourse() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: CourseOfferingProvidePayload) =>
+      (await teacherAssignmentApi.provideCourse(payload)).data,
+    retry: false,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: teacherAssignmentQueryKeys.all }),
+        // Course offerings are also consumed by student selection and related academic views.
+        queryClient.invalidateQueries({ queryKey: ['course-offerings'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['schedules'] }),
+        queryClient.invalidateQueries({ queryKey: ['attendance'] }),
+        queryClient.invalidateQueries({ queryKey: ['notifications'] }),
       ]);
     },
   });

@@ -19,7 +19,7 @@ from app.models.academic import (
     Semester,
     TeacherAssignmentRequest,
 )
-from app.models.user import User, UserRole
+from app.models.user import StudentProfile, User, UserRole
 from app.services.course_offering_service import CourseOfferingService
 from tests.conftest import auth_header, make_user
 
@@ -117,6 +117,94 @@ async def test_admin_can_read_active_semesters_for_offering_management(client, d
     assert response.status_code == 200, response.text
     assert response.json()
     assert all(row["is_active"] for row in response.json())
+
+
+async def test_teacher_can_provide_a_scoped_course_and_only_matching_students_can_enroll(client, db):
+    teacher = await make_user(db, role=UserRole.TEACHER)
+    matching_student = await make_user(db, role=UserRole.STUDENT)
+    other_student = await make_user(db, role=UserRole.STUDENT)
+    db.add_all([
+        StudentProfile(user_id=matching_student.id, session_year="2023-2024", current_term="3-1"),
+        StudentProfile(user_id=other_student.id, session_year="2023-2024", current_term="3-2"),
+    ])
+    semester = Semester(
+        title="Term 3-1, 2030",
+        target_term="3-1",
+        is_active=True,
+        start_date=date(2030, 1, 1),
+        end_date=date(2030, 6, 30),
+    )
+    db.add(semester)
+    await db.commit()
+
+    provided = await client.post(
+        "/api/v1/course-offerings/provide",
+        json={
+            "course_code": " eee 499 ",
+            "title": "Advanced Embedded Systems",
+            "credit_hours": 3.0,
+            "course_type": "theory",
+            "semester_id": semester.id,
+            "description": "Teacher-provided course",
+        },
+        headers=auth_header(teacher),
+    )
+    assert provided.status_code == 201, provided.text
+    offering = provided.json()
+    assert offering["course_code"] == "EEE 499"
+    assert offering["publication_status"] == "published"
+    assert offering["target_term"] == "3-1"
+    assert offering["assigned_teachers"] == [{
+        "teacher_id": str(teacher.id),
+        "teacher_name": teacher.full_name,
+        "role": "course_teacher",
+    }]
+
+    matching_notifications = await client.get(
+        "/api/v1/notifications", headers=auth_header(matching_student),
+    )
+    other_notifications = await client.get(
+        "/api/v1/notifications", headers=auth_header(other_student),
+    )
+    assert matching_notifications.status_code == other_notifications.status_code == 200
+    assert [item["data_payload"]["type"] for item in matching_notifications.json()] == ["course_available"]
+    assert other_notifications.json() == []
+
+    matching_listing = await client.get(
+        "/api/v1/course-offerings/published", headers=auth_header(matching_student),
+    )
+    other_listing = await client.get(
+        "/api/v1/course-offerings/published", headers=auth_header(other_student),
+    )
+    assert {row["id"] for row in matching_listing.json()} == {offering["id"]}
+    assert other_listing.json() == []
+
+    before_enrollments = await db.scalar(select(func.count()).select_from(CourseEnrollment))
+    enrolled = await client.post(
+        f"/api/v1/course-offerings/{offering['id']}/enroll",
+        headers=auth_header(matching_student),
+    )
+    assert enrolled.status_code == 201, enrolled.text
+    assert await db.scalar(select(func.count()).select_from(CourseEnrollment)) == before_enrollments + 1
+
+    forbidden = await client.post(
+        f"/api/v1/course-offerings/{offering['id']}/enroll",
+        headers=auth_header(other_student),
+    )
+    assert forbidden.status_code == 403
+
+    duplicate = await client.post(
+        "/api/v1/course-offerings/provide",
+        json={
+            "course_code": "EEE 499",
+            "title": "Advanced Embedded Systems",
+            "credit_hours": 3.0,
+            "course_type": "theory",
+            "semester_id": semester.id,
+        },
+        headers=auth_header(teacher),
+    )
+    assert duplicate.status_code == 409
 
 
 @pytest.mark.parametrize("role", [UserRole.STUDENT, UserRole.CR])

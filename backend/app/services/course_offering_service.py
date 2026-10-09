@@ -32,7 +32,7 @@ from app.models.academic import (
     TeacherAssignmentRequestStatus,
 )
 from app.models.notification import NotificationBatch
-from app.models.user import User, UserRole
+from app.models.user import StudentProfile, User, UserRole
 from app.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 COURSE_NOTIFICATION_NAMESPACE = uuid.UUID("0d7d0f0d-6b5d-46ea-a80d-0e4eeccf7e54")
 COURSE_ASSIGNMENT_NOTIFICATION = "course_assignment"
 COURSE_ENROLLMENT_NOTIFICATION = "course_enrollment"
+COURSE_AVAILABLE_NOTIFICATION = "course_available"
 
 
 def assignment_approval_event_id(request_id: uuid.UUID) -> uuid.UUID:
@@ -55,6 +56,11 @@ def enrollment_event_id(enrollment: CourseEnrollment) -> uuid.UUID:
         COURSE_NOTIFICATION_NAMESPACE,
         f"enrollment:{enrollment.id}:{enrollment.status}:{updated_at}",
     )
+
+
+def course_available_event_id(offering_id: uuid.UUID) -> uuid.UUID:
+    """Stable event identity shared by all recipients of one new offering."""
+    return uuid.uuid5(COURSE_NOTIFICATION_NAMESPACE, f"course-available:{offering_id}")
 
 
 class CourseOfferingService:
@@ -114,13 +120,16 @@ class CourseOfferingService:
                 # republish a still-pending batch when Redis is unavailable.
                 logger.warning("Could not publish course notification batch; outbox will recover it.")
 
-    async def _active_students_and_crs(self) -> list[uuid.UUID]:
-        return list((await self.db.scalars(
-            select(User.id).where(
-                User.is_active.is_(True),
-                User.role.in_([UserRole.STUDENT, UserRole.CR]),
+    async def _active_students_and_crs(self, target_term: str | None = None) -> list[uuid.UUID]:
+        stmt = select(User.id).where(
+            User.is_active.is_(True),
+            User.role.in_([UserRole.STUDENT, UserRole.CR]),
+        )
+        if target_term is not None:
+            stmt = stmt.join(StudentProfile, StudentProfile.user_id == User.id).where(
+                StudentProfile.current_term == target_term,
             )
-        )).all())
+        return list((await self.db.scalars(stmt)).all())
 
     async def _active_assigned_teachers(self, offering_id: uuid.UUID) -> list[uuid.UUID]:
         request = aliased(TeacherAssignmentRequest)
@@ -146,8 +155,17 @@ class CourseOfferingService:
         )).all())
 
     async def _notify_assignment_approval(self, request_id: uuid.UUID) -> None:
+        target_term = await self.db.scalar(
+            select(Semester.target_term)
+            .join(CourseOffering, CourseOffering.semester_id == Semester.id)
+            .join(
+                TeacherAssignmentRequest,
+                TeacherAssignmentRequest.course_offering_id == CourseOffering.id,
+            )
+            .where(TeacherAssignmentRequest.id == request_id)
+        )
         await self._enqueue_for_users(
-            await self._active_students_and_crs(),
+            await self._active_students_and_crs(target_term),
             assignment_approval_event_id(request_id),
             COURSE_ASSIGNMENT_NOTIFICATION,
         )
@@ -204,6 +222,17 @@ class CourseOfferingService:
             raise NotFoundException("Semester not found.")
         return semester
 
+    async def _semester_for_update(self, semester_id: int) -> Semester:
+        semester = await self.db.scalar(
+            select(Semester)
+            .where(Semester.id == semester_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if not semester:
+            raise NotFoundException("Semester not found.")
+        return semester
+
     @staticmethod
     def _offering_payload(
         offering: CourseOffering,
@@ -221,6 +250,7 @@ class CourseOfferingService:
             "credit_hours": float(course.credit_hours),
             "course_type": course.type,
             "semester_title": semester.title,
+            "target_term": semester.target_term,
             "semester_is_active": bool(semester.is_active),
             "publication_status": offering.publication_status,
             "assigned_teachers": [],
@@ -299,6 +329,97 @@ class CourseOfferingService:
             conflict_message="An offering for this course and semester already exists.",
         )
 
+    async def provide_offering(
+        self,
+        teacher_id: uuid.UUID,
+        *,
+        course_code: str,
+        title: str,
+        credit_hours: Decimal,
+        course_type: str,
+        semester_id: int,
+        description: str | None = None,
+    ) -> dict:
+        """Create a published, semester-scoped offering owned by a teacher.
+
+        The semester is locked before the catalogue row so a concurrent
+        lifecycle change cannot turn an otherwise valid request into an
+        offering outside the active target-term semester. Existing catalogue
+        rows are reference data: a code collision is reusable only when the
+        identifying metadata agrees, and is never overwritten.
+        """
+
+        async def operation():
+            teacher = await self.db.get(User, teacher_id)
+            if (
+                teacher is None
+                or teacher.role != UserRole.TEACHER
+                or not teacher.is_active
+            ):
+                raise ForbiddenException("Active teacher role required.")
+
+            semester = await self._semester_for_update(semester_id)
+            if not semester.is_active or semester.target_term is None:
+                raise DomainException(
+                    "Teacher-provided offerings require an active semester with a target term.",
+                    status_code=422,
+                )
+
+            course = await self.db.scalar(
+                select(Course)
+                .where(Course.course_code == course_code)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+            if course is None:
+                course = Course(
+                    course_code=course_code,
+                    title=title,
+                    credit_hours=credit_hours,
+                    type=course_type,
+                    description=description,
+                )
+                self.db.add(course)
+                await self.db.flush()
+            elif (
+                course.title != title
+                or Decimal(str(course.credit_hours)) != credit_hours
+                or course.type != course_type
+            ):
+                raise ResourceConflictException(
+                    "Course code already exists with different catalogue metadata."
+                )
+
+            offering = CourseOffering(
+                course_id=course.id,
+                semester_id=semester.id,
+                created_by=teacher_id,
+                publication_status=OfferingPublicationStatus.PUBLISHED.value,
+                published_at=self._now(),
+            )
+            self.db.add(offering)
+            await self.db.flush()
+            self.db.add(
+                CourseOfferingTeacher(
+                    course_offering_id=offering.id,
+                    teacher_id=teacher_id,
+                )
+            )
+            await self.db.flush()
+
+            await self._enqueue_for_users(
+                await self._active_students_and_crs(semester.target_term),
+                course_available_event_id(offering.id),
+                COURSE_AVAILABLE_NOTIFICATION,
+            )
+            return await self._offering_details(offering.id)
+
+        return await self._run_mutation(
+            operation,
+            commit=True,
+            conflict_message="An offering for this course and semester already exists.",
+        )
+
     async def update_offering(
         self,
         offering_id: uuid.UUID,
@@ -343,29 +464,54 @@ class CourseOfferingService:
             conflict_message="Could not update offering publication status.",
         )
 
-    async def list_published_offerings(self) -> list[dict]:
-        rows = (
-            await self.db.execute(
-                select(CourseOffering, Course, Semester)
-                .join(Course, Course.id == CourseOffering.course_id)
-                .join(Semester, Semester.id == CourseOffering.semester_id)
-                .where(
-                    CourseOffering.publication_status == OfferingPublicationStatus.PUBLISHED.value,
-                    Semester.is_active.is_(True),
-                )
-                .order_by(Course.course_code)
+    async def list_published_offerings(
+        self,
+        student_id: uuid.UUID | None = None,
+    ) -> list[dict]:
+        stmt = (
+            select(CourseOffering, Course, Semester)
+            .join(Course, Course.id == CourseOffering.course_id)
+            .join(Semester, Semester.id == CourseOffering.semester_id)
+            .where(
+                CourseOffering.publication_status == OfferingPublicationStatus.PUBLISHED.value,
+                Semester.is_active.is_(True),
             )
-        ).all()
+            .order_by(Course.course_code)
+        )
+        if student_id is not None:
+            stmt = (
+                stmt.outerjoin(StudentProfile, StudentProfile.user_id == student_id)
+                .where(
+                    or_(
+                        Semester.target_term.is_(None),
+                        StudentProfile.current_term == Semester.target_term,
+                    )
+                )
+            )
+        rows = (await self.db.execute(stmt)).all()
         teachers = await self._assigned_teacher_details([offering.id for offering, _, _ in rows])
         return [
             {**self._offering_payload(offering, course, semester), "assigned_teachers": teachers.get(offering.id, [])}
             for offering, course, semester in rows
         ]
 
-    async def list_active_semesters(self) -> list[Semester]:
-        return list((await self.db.scalars(
-            select(Semester).where(Semester.is_active.is_(True)).order_by(Semester.start_date.desc(), Semester.id)
-        )).all())
+    async def list_active_semesters(
+        self,
+        student_id: uuid.UUID | None = None,
+    ) -> list[Semester]:
+        stmt = select(Semester).where(Semester.is_active.is_(True))
+        if student_id is not None:
+            stmt = (
+                stmt.outerjoin(StudentProfile, StudentProfile.user_id == student_id)
+                .where(
+                    or_(
+                        Semester.target_term.is_(None),
+                        StudentProfile.current_term == Semester.target_term,
+                    )
+                )
+            )
+        stmt = stmt.order_by(Semester.start_date.desc(), Semester.id)
+        return list((await self.db.scalars(stmt)).all())
 
     async def list_available_offerings(self, teacher_id: uuid.UUID) -> list[dict]:
         request = aliased(TeacherAssignmentRequest)
@@ -617,6 +763,7 @@ class CourseOfferingService:
 
     async def _enrollment_offerings(
         self,
+        student_id: uuid.UUID,
         offering_ids: Sequence[uuid.UUID],
         *,
         registration: bool = False,
@@ -650,6 +797,19 @@ class CourseOfferingService:
         ):
             message = "All selected course offerings must be published in the active semester."
             raise DomainException(message, status_code=422 if registration else 409)
+
+        target_terms = {
+            semester.target_term for semester in semesters.values() if semester.target_term is not None
+        }
+        if target_terms:
+            current_term = await self.db.scalar(
+                select(StudentProfile.current_term).where(StudentProfile.user_id == student_id)
+            )
+            if any(current_term != target_term for target_term in target_terms):
+                message = "The selected course offering is not available for your current term."
+                if registration:
+                    raise DomainException(message, status_code=422)
+                raise ForbiddenException(message)
         return offerings
 
     async def enroll_many(
@@ -670,7 +830,11 @@ class CourseOfferingService:
             return []
 
         async def operation():
-            offerings = await self._enrollment_offerings(offering_ids, registration=registration)
+            offerings = await self._enrollment_offerings(
+                student_id,
+                offering_ids,
+                registration=registration,
+            )
             existing_rows = (
                 await self.db.execute(
                     select(CourseEnrollment)
@@ -740,7 +904,7 @@ class CourseOfferingService:
         if owner.student_id != student_id:
             raise ForbiddenException("You may only modify your own enrollments.")
         if require_eligible_offering:
-            await self._enrollment_offerings([owner.course_offering_id])
+            await self._enrollment_offerings([student_id], [owner.course_offering_id])
         else:
             await self._offering_for_update(owner.course_offering_id)
 

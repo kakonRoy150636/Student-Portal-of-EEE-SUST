@@ -9,6 +9,7 @@ const labels = {
   class_reminder: 'Class reminders', lab_reminder: 'Lab reminders',
   exam_reminder: 'Academic reminders', announcement: 'Announcements',
   course_assignment: 'Course assignment updates', course_enrollment: 'Course enrollment updates',
+  course_available: 'New courses',
 };
 type NotificationType = keyof typeof labels;
 type Preferences = {

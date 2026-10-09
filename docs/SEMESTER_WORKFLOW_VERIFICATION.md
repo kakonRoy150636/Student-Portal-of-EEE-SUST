@@ -79,3 +79,30 @@ docker compose -p semester-flow \
 
 The fixed credentials in `database/dev/seed.sql` are for disposable
 development databases only.
+
+## Teacher-provided course manual check
+
+The seed also includes these requested development users, all with password
+`password123`:
+
+| Role | Login identifier | Name | Target term |
+|---|---|---|---|
+| Teacher | `tasfik-rahman` | Tasfik Rahman | — |
+| Student | `2023338049` | Kakon Chandro Roy | `3-1` |
+| CR | `2023338050` | Tanij Roy | `3-1` |
+
+1. Sign in as `tasfik-rahman` and open `/teacher-assignment`.
+2. Choose **Offer a course** and enter the course code, course name, credits,
+   course type, description, and the active semester/target term.
+3. Submit the form. The offering is published immediately and Tasfik is shown
+   as its assigned teacher; no student is enrolled automatically.
+4. Sign in as `2023338049` or `2023338050` and open `/course-selection`.
+5. The matching-term students see the new course and its `course_available`
+   notification, then can choose **Select** to enroll.
+6. Return to Tasfik's account and open the course roster to see only students
+   who selected the course.
+
+Teacher-provided courses are scoped to `Semester.target_term`. A student whose
+`profiles_student.current_term` does not match cannot see or enroll in that
+offering, even if they guess its API ID. Existing semesters with `NULL`
+`target_term` retain the legacy unrestricted behavior.

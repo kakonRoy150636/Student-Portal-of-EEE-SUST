@@ -22,6 +22,7 @@ from app.schemas.academic import (
     EnrollmentResponse,
     RosterEntryResponse,
     SemesterResponse,
+    TeacherCourseOfferingCreate,
     TeacherAssignmentRequestResponse,
 )
 from app.services.course_offering_service import CourseOfferingService
@@ -51,6 +52,23 @@ async def create_course_offering(
     return await CourseOfferingService(db).create_offering(user.id, payload.course_id, payload.semester_id)
 
 
+@router.post("/provide", response_model=CourseOfferingResponse, status_code=status.HTTP_201_CREATED)
+async def provide_course_offering(
+    payload: TeacherCourseOfferingCreate,
+    user: User = Depends(RequireRole(TEACHER)),
+    db: AsyncSession = Depends(get_db),
+):
+    return await CourseOfferingService(db).provide_offering(
+        user.id,
+        course_code=payload.course_code,
+        title=payload.title,
+        credit_hours=payload.credit_hours,
+        course_type=payload.course_type,
+        semester_id=payload.semester_id,
+        description=payload.description,
+    )
+
+
 @router.get("", response_model=list[CourseOfferingResponse])
 async def list_course_offerings_for_role(
     user: User = Depends(get_current_user),
@@ -60,7 +78,7 @@ async def list_course_offerings_for_role(
     if user.role == UserRole.TEACHER:
         return await service.list_available_offerings(user.id)
     if user.role in STUDENT_OR_CR:
-        return await service.list_published_offerings()
+        return await service.list_published_offerings(user.id)
     if user.role == UserRole.SUPER_ADMIN:
         return await service.list_available_offerings(user.id)
     raise ForbiddenException("This account cannot access course offerings.")
@@ -122,7 +140,7 @@ async def list_published_course_offerings(
     user: User = Depends(RequireRole(STUDENT_OR_CR)),
     db: AsyncSession = Depends(get_db),
 ):
-    return await CourseOfferingService(db).list_published_offerings()
+    return await CourseOfferingService(db).list_published_offerings(user.id)
 
 
 @router.get("/available", response_model=list[CourseOfferingResponse])
@@ -135,10 +153,11 @@ async def list_available_course_offerings(
 
 @router.get("/semesters/active", response_model=list[SemesterResponse])
 async def list_active_semesters(
-    user: User = Depends(RequireRole([*STUDENT_OR_CR, UserRole.SUPER_ADMIN])),
+    user: User = Depends(RequireRole([*STUDENT_OR_CR, UserRole.SUPER_ADMIN, UserRole.TEACHER])),
     db: AsyncSession = Depends(get_db),
 ):
-    return await CourseOfferingService(db).list_active_semesters()
+    student_id = user.id if user.role in STUDENT_OR_CR else None
+    return await CourseOfferingService(db).list_active_semesters(student_id)
 
 
 @router.get("/assignment-requests", response_model=list[TeacherAssignmentRequestResponse])

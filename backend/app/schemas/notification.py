@@ -26,7 +26,7 @@ class NotificationPreferencesRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     per_type: dict[Literal[
         "class_reminder", "lab_reminder", "exam_reminder", "announcement",
-        "course_assignment", "course_enrollment",
+        "course_assignment", "course_enrollment", "course_available",
     ], ChannelPreference] = Field(default_factory=dict)
     quiet_start: time | None = None
     quiet_end: time | None = None

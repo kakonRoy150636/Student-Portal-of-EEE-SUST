@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type {
   CourseOffering,
   RosterEntry,
+  Semester,
   TeacherAssignmentRequest,
 } from '@/types/academic';
 
@@ -65,6 +66,15 @@ const rejectedRequest: TeacherAssignmentRequest = {
   rejection_reason: 'Another teacher was selected.',
 };
 
+const activeSemester: Semester = {
+  id: 1,
+  title: 'Fall 2026',
+  target_term: '3-1',
+  is_active: true,
+  start_date: '2026-07-01',
+  end_date: '2026-12-31',
+};
+
 const approvedOffering: CourseOffering = {
   ...baseOffering,
   id: 'offering-4',
@@ -96,12 +106,27 @@ function renderPage() {
 
 function setupApi() {
   mocks.get.mockImplementation((path: string) => {
+    if (path.endsWith('/semesters/active')) return response([activeSemester]);
     if (path.endsWith('/available')) return response(offerings);
     if (path.endsWith('/assignment-requests/mine')) return response(requests);
     if (path.endsWith('/roster')) return response(roster);
     throw new Error(`Unexpected GET ${path}`);
   });
   mocks.post.mockImplementation(async (path: string) => {
+    if (path === '/course-offerings/provide') {
+      const provided: CourseOffering = {
+        ...baseOffering,
+        id: 'provided-1',
+        course_code: 'EEE 499',
+        course_title: 'Advanced Embedded Systems',
+        credit_hours: 3,
+        target_term: '3-1',
+        created_by: mocks.user.id,
+        assigned_teachers: [{ teacher_id: mocks.user.id, teacher_name: 'Dr. Ada Rahman', role: 'course_teacher' }],
+      };
+      offerings = [...offerings, provided];
+      return response(provided);
+    }
     expect(path).toBe('/course-offerings/offering-1/assignment-requests');
     const created: TeacherAssignmentRequest = {
       ...pendingRequest,
@@ -156,6 +181,32 @@ describe('TeacherAssignmentPage', () => {
     await waitFor(() => expect(mocks.post).toHaveBeenCalledWith('/course-offerings/offering-1/assignment-requests'));
     expect(await screen.findByText('Assignment request submitted and marked pending review.')).toBeTruthy();
     expect((await screen.findAllByText('pending')).length).toBeGreaterThan(2);
+  });
+
+  it('offers a published course for a matching semester term', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Offer a course', exact: true }));
+    await user.type(screen.getByLabelText('Course code'), 'EEE 499');
+    await user.type(screen.getByLabelText('Course name'), 'Advanced Embedded Systems');
+    await user.type(screen.getByLabelText('Credits'), '3');
+    await user.selectOptions(screen.getByLabelText('Course type (theory/lab)'), 'theory');
+    await user.selectOptions(screen.getByLabelText('Semester'), String(activeSemester.id));
+    await user.type(screen.getByLabelText('Description optional'), 'Teacher-provided course');
+
+    const offerButtons = screen.getAllByRole('button', { name: 'Offer a course', exact: true });
+    await user.click(offerButtons[offerButtons.length - 1]);
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalledWith('/course-offerings/provide', {
+      course_code: 'EEE 499',
+      title: 'Advanced Embedded Systems',
+      credit_hours: 3,
+      course_type: 'theory',
+      semester_id: activeSemester.id,
+      description: 'Teacher-provided course',
+    }));
+    expect(await screen.findByText('Course offered successfully. It is published now, and matching-term students can choose to enroll.')).toBeTruthy();
   });
 
   it('opens the approved course roster', async () => {

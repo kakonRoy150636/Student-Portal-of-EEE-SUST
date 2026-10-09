@@ -207,6 +207,11 @@ class AuthService:
                 session_year=dto.session_year,
                 current_term=dto.current_term,
             ))
+            # The enrollment service scopes semester offerings by the profile
+            # term. Flush the just-created profile while retaining the single
+            # registration transaction so a failed selection rolls everything
+            # back together.
+            await self.db.flush()
             offering_service = CourseOfferingService(self.db)
             await offering_service.enroll_many(
                 user.id,

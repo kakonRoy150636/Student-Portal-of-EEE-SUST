@@ -22,6 +22,8 @@ export interface Semester {
   is_active: boolean;
   start_date: string;
   end_date: string;
+  /** The term used to scope teacher-provided courses and student selection. */
+  target_term?: string | null;
 }
 
 export type OfferingPublicationStatus = 'draft' | 'published';
@@ -53,6 +55,17 @@ export interface TeacherAssignmentRequestFilters {
 export interface CourseOfferingCreatePayload {
   course_id: string;
   semester_id: number;
+}
+
+export type CourseProvisionType = 'theory' | 'lab';
+
+export interface CourseOfferingProvidePayload {
+  course_code: string;
+  title: string;
+  credit_hours: number;
+  course_type: CourseProvisionType;
+  semester_id: number;
+  description?: string;
 }
 
 export interface CourseOfferingUpdatePayload {
@@ -98,6 +111,8 @@ export interface CourseOffering {
   published_by: string | null;
   published_at: string | null;
   request_status: TeacherAssignmentRequestStatus | null;
+  /** Present when the offering is scoped to a matching student/teacher term. */
+  target_term?: string | null;
 }
 
 export interface CourseEnrollment {

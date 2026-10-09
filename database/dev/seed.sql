@@ -12,11 +12,15 @@
 --   dev-teacher-2 / DevTeacher123!
 --   dev-student-1 / DevStudent123!
 --   dev-student-2 / DevStudent123!
+--   tasfik-rahman / password123
+--   2023338049 (Kakon Chandro Roy) / password123
+--   2023338050 (Tanij Roy, CR) / password123
 
 -- One active semester. Natural-key upsert makes a safe rerun keep one row.
-INSERT INTO semesters (title, is_active, start_date, end_date) VALUES
-('Term 3-1, 2026', true, '2026-07-01', '2026-12-31')
+INSERT INTO semesters (title, target_term, is_active, start_date, end_date) VALUES
+('Term 3-1, 2026', '3-1', true, '2026-07-01', '2026-12-31')
 ON CONFLICT (title) DO UPDATE SET
+    target_term = EXCLUDED.target_term,
     is_active = EXCLUDED.is_active,
     start_date = EXCLUDED.start_date,
     end_date = EXCLUDED.end_date;
@@ -28,7 +32,10 @@ INSERT INTO users (identifier, email, password_hash, full_name, role, is_active)
 ('dev-teacher-1', 'dev-teacher-1@example.com', '$2b$12$RcfxHMvT.jr4xgfJoNvE1u6ww.gD0WkIjr47uuTzkJvpgKZe0M.nK', 'Dr. Samira Rahman', 'teacher', true),
 ('dev-teacher-2', 'dev-teacher-2@example.com', '$2b$12$RcfxHMvT.jr4xgfJoNvE1u6ww.gD0WkIjr47uuTzkJvpgKZe0M.nK', 'Dr. Farhan Karim', 'teacher', true),
 ('dev-student-1', 'dev-student-1@example.com', '$2b$12$XDDP1oLSMvX4bGuzkT.QFus3lGjyOuyTGCKJ.H5XrFqJNw7LviPwy', 'Nabila Ahmed', 'student', true),
-('dev-student-2', 'dev-student-2@example.com', '$2b$12$XDDP1oLSMvX4bGuzkT.QFus3lGjyOuyTGCKJ.H5XrFqJNw7LviPwy', 'Tanvir Hossain', 'student', true)
+('dev-student-2', 'dev-student-2@example.com', '$2b$12$XDDP1oLSMvX4bGuzkT.QFus3lGjyOuyTGCKJ.H5XrFqJNw7LviPwy', 'Tanvir Hossain', 'student', true),
+('tasfik-rahman', 'tasfik.rahman@example.com', '$2b$12$Hq4uAadGIUPP9Z.sCAE40.dyzWoIMqQC.RppU1OwPB8r4dwULBxAq', 'Tasfik Rahman', 'teacher', true),
+('2023338049', 'kakon.chandro.roy@example.com', '$2b$12$Hq4uAadGIUPP9Z.sCAE40.dyzWoIMqQC.RppU1OwPB8r4dwULBxAq', 'Kakon Chandro Roy', 'student', true),
+('2023338050', 'tanij.roy@example.com', '$2b$12$Hq4uAadGIUPP9Z.sCAE40.dyzWoIMqQC.RppU1OwPB8r4dwULBxAq', 'Tanij Roy', 'cr', true)
 ON CONFLICT (identifier) DO UPDATE SET
     email = EXCLUDED.email,
     password_hash = EXCLUDED.password_hash,
@@ -52,6 +59,14 @@ ON CONFLICT (user_id) DO UPDATE SET
     room_number = EXCLUDED.room_number,
     office_hours = EXCLUDED.office_hours;
 
+INSERT INTO profiles_faculty (user_id, designation, room_number, office_hours)
+SELECT id, 'Lecturer', 'EEE-203', 'Sunday and Tuesday, 13:00–15:00'
+FROM users WHERE identifier = 'tasfik-rahman'
+ON CONFLICT (user_id) DO UPDATE SET
+    designation = EXCLUDED.designation,
+    room_number = EXCLUDED.room_number,
+    office_hours = EXCLUDED.office_hours;
+
 INSERT INTO profiles_student (user_id, session_year, current_term)
 SELECT id, '2023-2024', '3-1'
 FROM users WHERE identifier = 'dev-student-1'
@@ -62,6 +77,20 @@ ON CONFLICT (user_id) DO UPDATE SET
 INSERT INTO profiles_student (user_id, session_year, current_term)
 SELECT id, '2023-2024', '3-1'
 FROM users WHERE identifier = 'dev-student-2'
+ON CONFLICT (user_id) DO UPDATE SET
+    session_year = EXCLUDED.session_year,
+    current_term = EXCLUDED.current_term;
+
+INSERT INTO profiles_student (user_id, session_year, current_term)
+SELECT id, '2023-2024', '3-1'
+FROM users WHERE identifier = '2023338049'
+ON CONFLICT (user_id) DO UPDATE SET
+    session_year = EXCLUDED.session_year,
+    current_term = EXCLUDED.current_term;
+
+INSERT INTO profiles_student (user_id, session_year, current_term)
+SELECT id, '2023-2024', '3-1'
+FROM users WHERE identifier = '2023338050'
 ON CONFLICT (user_id) DO UPDATE SET
     session_year = EXCLUDED.session_year,
     current_term = EXCLUDED.current_term;

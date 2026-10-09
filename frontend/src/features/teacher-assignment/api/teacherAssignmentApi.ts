@@ -1,7 +1,9 @@
 import { api } from '@/lib/axios';
 import type {
   CourseOffering,
+  CourseOfferingProvidePayload,
   RosterEntry,
+  Semester,
   TeacherAssignmentRequest,
   TeacherAssignmentRequestFilters,
 } from '@/types/academic';
@@ -9,8 +11,14 @@ import type {
 const base = '/course-offerings';
 
 export const teacherAssignmentApi = {
+  getActiveSemesters: (signal?: AbortSignal) =>
+    api.get<Semester[]>(`${base}/semesters/active`, { signal }),
+
   getAvailableOfferings: (signal?: AbortSignal) =>
     api.get<CourseOffering[]>(`${base}/available`, { signal }),
+
+  provideCourse: (payload: CourseOfferingProvidePayload) =>
+    api.post<CourseOffering>(`${base}/provide`, payload),
 
   getAssignmentRequests: (
     filters: TeacherAssignmentRequestFilters = {},

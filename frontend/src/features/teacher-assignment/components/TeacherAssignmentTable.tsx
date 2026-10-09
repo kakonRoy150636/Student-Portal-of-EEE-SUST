@@ -14,6 +14,7 @@ export type TeacherAssignmentRow = CourseOffering & {
   ownStatus: TeacherAssignmentRequestStatus | null;
   ownRequest?: TeacherAssignmentRequest;
   isAssigned: boolean;
+  isProvided?: boolean;
 };
 
 export type RosterRow = RosterEntry & { id: string };
@@ -29,6 +30,8 @@ export function TeacherAssignmentTable({
   onRequest: (offeringId: string) => void;
   onRoster: (offeringId: string) => void;
 }) {
+  const showCreator = rows.some((row) => row.isProvided);
+
   return (
     <DataTable
       data={rows}
@@ -44,6 +47,15 @@ export function TeacherAssignmentTable({
             </div>
           ),
         },
+        ...(showCreator ? [{
+          header: 'Creator / assignment',
+          cell: () => (
+            <div className="min-w-36 space-y-1">
+              <Badge variant="success">Provided by you</Badge>
+              <p className="text-xs text-[var(--text-muted)]">Published immediately</p>
+            </div>
+          ),
+        }] : []),
         {
           header: 'Credit',
           cell: (row) => <span className="tabular-nums">{row.credit_hours}</span>,
@@ -53,6 +65,7 @@ export function TeacherAssignmentTable({
           cell: (row) => (
             <div className="min-w-32 space-y-1">
               <p>{row.semester_title}</p>
+              {row.target_term && <p className="text-xs text-[var(--text-muted)]">Target term: {row.target_term}</p>}
               <div className="flex flex-wrap gap-1">
                 <StatusBadge status={row.publication_status} />
                 {!row.semester_is_active && <Badge variant="secondary">Inactive semester</Badge>}
@@ -83,8 +96,13 @@ export function TeacherAssignmentTable({
           header: 'Your request',
           cell: (row) => (
             <div className="min-w-28 space-y-1">
-              {row.ownStatus ? <StatusBadge status={row.ownStatus} /> : <Badge variant="outline">Not requested</Badge>}
-              {row.ownStatus === 'rejected' && row.ownRequest?.rejection_reason && (
+              {row.isProvided ? (
+                <>
+                  <Badge variant="success">Course provided</Badge>
+                  <p className="text-xs text-[var(--text-muted)]">No approval required</p>
+                </>
+              ) : row.ownStatus ? <StatusBadge status={row.ownStatus} /> : <Badge variant="outline">Not requested</Badge>}
+              {!row.isProvided && row.ownStatus === 'rejected' && row.ownRequest?.rejection_reason && (
                 <p className="max-w-48 text-xs text-[var(--text-muted)]">{row.ownRequest.rejection_reason}</p>
               )}
             </div>
@@ -93,7 +111,7 @@ export function TeacherAssignmentTable({
         {
           header: 'Action',
           cell: (row) => {
-            const canViewRoster = row.ownStatus === 'approved' || row.isAssigned;
+            const canViewRoster = row.ownStatus === 'approved' || row.isAssigned || Boolean(row.isProvided);
             const isPending = pendingOfferingId === row.id;
             if (canViewRoster) {
               return (

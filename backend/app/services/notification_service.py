@@ -28,11 +28,16 @@ TEMPLATES = {
         "Course enrollment update",
         "Your course enrollment was updated. Open the portal for details.",
     ),
+    "course_available": (
+        "New course available",
+        "A new course is available for selection. Open the portal for details.",
+    ),
 }
 NOTIFICATION_URLS = {
     "class_reminder": "/schedule", "lab_reminder": "/schedule",
     "exam_reminder": "/schedule", "announcement": "/notifications",
     "course_assignment": "/notifications", "course_enrollment": "/notifications",
+    "course_available": "/course-selection",
 }
 
 

@@ -46,7 +46,7 @@ export default function CourseSelectionPage() {
 
   return <div className="space-y-6">
     <PageHeader kicker="Academic" title="Course selection"
-      description="Select published courses, manage your enrollments, and review your active credits."
+      description="Select published courses for your semester, manage your enrollments, and review your active credits."
       action={<Button variant="outline" onClick={refresh} disabled={query.isFetching || mutation.isPending}>
         {query.isFetching && !query.isPending ? 'Refreshing…' : 'Refresh'}
       </Button>} />
@@ -71,11 +71,11 @@ export default function CourseSelectionPage() {
     {!query.isPending && !query.isError && snapshot && <>
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>Active semester</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Your semester</CardTitle></CardHeader>
           <CardContent>
             {semesters.length > 0 ? <ul className="space-y-2">
               {semesters.map((semester) => <li key={semester.id} className="font-medium">{semester.title}</li>)}
-            </ul> : <p className="text-sm text-[var(--text-muted)]">No active semester</p>}
+            </ul> : <p className="text-sm text-[var(--text-muted)]">No active semester for your semester selection.</p>}
           </CardContent>
         </Card>
         <Card>
@@ -90,7 +90,7 @@ export default function CourseSelectionPage() {
       </div>
       {!(snapshot.offerings.some((offering) => isOfferingSelectable(offering, semesters))) && <EmptyState
         title={semesters.length ? 'No courses published' : 'No active semester'}
-        description={semesters.length ? 'Course offerings will appear here after an administrator publishes them.' : 'Course selection will be available when an administrator activates a semester and publishes its offerings.'} />}
+        description={semesters.length ? 'Course offerings for your semester will appear here after they are published.' : 'Course selection will be available when your semester is active and its offerings are published.'} />}
       {rows.length > 0 && <Card>
         <CardHeader>
           <CardTitle>Course offerings and your enrollments</CardTitle>

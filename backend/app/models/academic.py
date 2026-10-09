@@ -4,7 +4,7 @@ from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
 from sqlalchemy import (
-    BigInteger, Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index,
+    BigInteger, Boolean, CheckConstraint, Date, DateTime, Enum as SAEnum, ForeignKey, Index,
     Integer, Numeric, SQLColumnExpression, String, Time, UniqueConstraint, func, select, text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -58,9 +58,17 @@ class CourseOfferingTeacher(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 class Semester(Base):
     __tablename__ = "semesters"
+    __table_args__ = (
+        CheckConstraint(
+            "target_term IS NULL OR target_term IN "
+            "('1-1', '1-2', '2-1', '2-2', '3-1', '3-2', '4-1', '4-2')",
+            name="ck_semesters_target_term",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    target_term: Mapped[str | None] = mapped_column(String(4), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
@@ -72,7 +80,11 @@ class Course(Base, UUIDPrimaryKeyMixin):
     course_code: Mapped[str] = mapped_column(String(12), unique=True, index=True, nullable=False)
     title: Mapped[str] = mapped_column(String(150), nullable=False)
     credit_hours: Mapped[Decimal] = mapped_column(Numeric(3, 1), nullable=False)
-    type: Mapped[str] = mapped_column(String(20), nullable=False)
+    # PostgreSQL stores the catalogue type as the existing course_type enum;
+    # mapping it as VARCHAR works in SQLite tests but fails on real inserts.
+    type: Mapped[str] = mapped_column(
+        SAEnum("theory", "lab", "thesis", "project", name="course_type"), nullable=False,
+    )
     description: Mapped[str] = mapped_column(String(500), nullable=True)
 
 
