@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.models.user import User, UserRole
 from app.models.academic import (
     CourseOfferingTeacher,
+    CourseOffering,
     TeacherAssignmentRequest,
     TeacherAssignmentRequestStatus,
 )
@@ -150,6 +151,9 @@ async def verify_course_teacher(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> User:
+  if await db.scalar(select(CourseOffering.id).where(CourseOffering.id == course_offering_id)) is None:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course offering not found.")
+
   if user.role == UserRole.SUPER_ADMIN:
     return user
 
@@ -158,8 +162,12 @@ async def verify_course_teacher(
         status_code=status.HTTP_403_FORBIDDEN, detail="Teacher role required."
     )
 
+  # A provider/creator is a valid course teacher even if a legacy database has
+  # not yet materialised the assignment row.  Approved requests remain valid
+  # independently, while a rejected request cannot use a stale assignment.
   stmt = (
       select(CourseOfferingTeacher)
+      .join(CourseOffering, CourseOffering.id == CourseOfferingTeacher.course_offering_id)
       .outerjoin(
           TeacherAssignmentRequest,
           and_(
@@ -174,11 +182,28 @@ async def verify_course_teacher(
           or_(
               TeacherAssignmentRequest.id.is_(None),
               TeacherAssignmentRequest.status == TeacherAssignmentRequestStatus.APPROVED.value,
+              CourseOffering.created_by == user.id,
           ),
       )
   )
   result = await db.execute(stmt)
-  if not result.scalar_one_or_none():
+  if result.scalar_one_or_none():
+    return user
+
+  approved_request = await db.scalar(
+      select(TeacherAssignmentRequest.id).where(
+          TeacherAssignmentRequest.course_offering_id == course_offering_id,
+          TeacherAssignmentRequest.teacher_id == user.id,
+          TeacherAssignmentRequest.status == TeacherAssignmentRequestStatus.APPROVED.value,
+      )
+  )
+  provider = await db.scalar(
+      select(CourseOffering.id).where(
+          CourseOffering.id == course_offering_id,
+          CourseOffering.created_by == user.id,
+      )
+  )
+  if approved_request is None and provider is None:
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="You are not assigned as a teacher for this course.",

@@ -39,6 +39,17 @@ from app.models.alumni import (  # noqa: F401
 from app.models.attendance import AttendanceRecord, AttendanceSession  # noqa: F401
 from app.models.auth import PasswordResetToken, RefreshToken  # noqa: F401
 from app.models.career import CareerOpportunity, StudentCVProfile, StudentPortfolio  # noqa: F401
+from app.models.course_workspace import (  # noqa: F401
+    AnnouncementAudience,
+    AnnouncementRead,
+    AnnouncementStatus,
+    AnnouncementType,
+    CourseAnnouncementRead,
+    CourseAnnouncement,
+    CourseEvent,
+    CourseQuestion,
+    CourseResource,
+)
 from app.models.facility import Room, RoomReservation  # noqa: F401
 from app.models.lab import (  # noqa: F401
     DamageReport,
@@ -96,4 +107,13 @@ __all__ = [
     "NotificationLog",
     "NotificationPreference",
     "UserDevice",
+    "AnnouncementAudience",
+    "AnnouncementRead",
+    "AnnouncementStatus",
+    "AnnouncementType",
+    "CourseAnnouncement",
+    "CourseAnnouncementRead",
+    "CourseEvent",
+    "CourseQuestion",
+    "CourseResource",
 ]

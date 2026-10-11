@@ -93,8 +93,8 @@ export default function CourseSelectionPage() {
         description={semesters.length ? 'Course offerings for your semester will appear here after they are published.' : 'Course selection will be available when your semester is active and its offerings are published.'} />}
       {rows.length > 0 && <Card>
         <CardHeader>
-          <CardTitle>Course offerings and your enrollments</CardTitle>
-          <p className="text-sm text-[var(--text-muted)]">Previous or unpublished enrollments remain visible for reference.</p>
+          <CardTitle>Course offerings, enrollments, and workspaces</CardTitle>
+          <p className="text-sm text-[var(--text-muted)]">Previous or unpublished enrollments remain visible for reference. Open a course workspace from its row for announcements and resources.</p>
         </CardHeader>
         <CardContent className="p-0">
           <CourseSelectionTable rows={rows} disabled={disabled}

@@ -12,7 +12,7 @@ from app.integrations.firebase_client import RetryableFCMError
 from app.models.notification import NotificationBatch
 from app.services.notification_service import NotificationService, utcnow
 from app.services.notification_dispatch import deliver_batch
-from app.services.notification_scanner import scan_classes, group_digest
+from app.services.notification_scanner import scan_classes, group_digest, scan_course_event_reminders
 
 
 async def _with_sessions(callback):
@@ -57,6 +57,27 @@ def scan_upcoming_class_alerts():
     created, batches = asyncio.run(_with_sessions(work))
     _publish(batches)
     return {"created": created}
+
+
+@celery_app.task
+def scan_upcoming_course_event_reminders():
+    async def work(sessions):
+        async with sessions() as db, db.begin():
+            return await scan_course_event_reminders(db)
+    created, batches = asyncio.run(_with_sessions(work))
+    _publish(batches)
+    return {"created": created}
+
+
+@celery_app.task
+def publish_scheduled_course_announcements():
+    from app.services.course_workspace_service import CourseWorkspaceService
+
+    async def work(sessions):
+        async with sessions() as db:
+            return await CourseWorkspaceService(db).publish_due_announcements()
+
+    return {"published": asyncio.run(_with_sessions(work))}
 
 
 @celery_app.task

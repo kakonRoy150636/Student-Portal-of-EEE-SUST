@@ -8,11 +8,12 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Iterable, Sequence
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, literal, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.core.academic_terms import is_term_eligible, term_eligibility_clause
 from app.core.exceptions import (
     DomainException,
     ForbiddenException,
@@ -129,7 +130,7 @@ class CourseOfferingService:
         )
         if target_term is not None:
             stmt = stmt.join(StudentProfile, StudentProfile.user_id == User.id).where(
-                StudentProfile.current_term == target_term,
+                term_eligibility_clause(StudentProfile.current_term, literal(target_term)),
             )
         return list((await self.db.scalars(stmt)).all())
 
@@ -484,10 +485,7 @@ class CourseOfferingService:
             stmt = (
                 stmt.outerjoin(StudentProfile, StudentProfile.user_id == student_id)
                 .where(
-                    or_(
-                        Semester.target_term.is_(None),
-                        StudentProfile.current_term == Semester.target_term,
-                    )
+                    term_eligibility_clause(StudentProfile.current_term, Semester.target_term)
                 )
             )
         rows = (await self.db.execute(stmt)).all()
@@ -506,10 +504,7 @@ class CourseOfferingService:
             stmt = (
                 stmt.outerjoin(StudentProfile, StudentProfile.user_id == student_id)
                 .where(
-                    or_(
-                        Semester.target_term.is_(None),
-                        StudentProfile.current_term == Semester.target_term,
-                    )
+                    term_eligibility_clause(StudentProfile.current_term, Semester.target_term)
                 )
             )
         stmt = stmt.order_by(Semester.start_date.desc(), Semester.id)
@@ -826,7 +821,7 @@ class CourseOfferingService:
             current_term = await self.db.scalar(
                 select(StudentProfile.current_term).where(StudentProfile.user_id == student_id)
             )
-            if any(current_term != target_term for target_term in target_terms):
+            if any(not is_term_eligible(current_term, target_term) for target_term in target_terms):
                 message = "The selected course offering is not available for your current term."
                 if registration:
                     raise DomainException(message, status_code=422)

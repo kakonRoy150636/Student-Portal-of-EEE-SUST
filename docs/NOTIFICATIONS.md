@@ -36,7 +36,7 @@ create_notification.delay(
 ```
 
 Allowed types: `class_reminder`, `lab_reminder`, `exam_reminder`, `announcement`,
-`course_assignment`, `course_enrollment`.
+`course_assignment`, `course_enrollment`, `course_available`.
 There is deliberately no arbitrary title/body/data argument. The event UUID
 must remain stable across producer retries. Separate event occurrences need
 different UUIDs.
@@ -60,21 +60,43 @@ deferral. Inactive users and dropped enrollments are excluded.
 
 Course workflow producers use the same durable outbox:
 
+- publishing a Course Workspace announcement enqueues the existing `announcement`
+  type for each eligible active recipient; the event ID is deterministic from
+  announcement ID + recipient ID and the in-app payload contains a server-built
+  workspace deep link;
+- a teacher providing a published course enqueues one `course_available` event
+  per eligible active student and CR;
 - approving a teacher assignment enqueues one `course_assignment` event per
-  active student and CR;
+  eligible active student and CR;
 - enrolling or reselecting enqueues one `course_enrollment` event for the
   student and each active teacher assigned to the offering;
-- event IDs are deterministic from the assignment request or enrollment
+- event IDs are deterministic from the offering, assignment request, or enrollment
   transition, so retries cannot create duplicate inbox rows or push batches;
-- these notifications use the safe `/notifications` internal URL and contain
-  no course names, identifiers, grades or client-supplied text.
+- published course events enqueue one deterministic `exam_reminder` per active
+  enrolled student when the configured reminder window opens; answered course
+  questions use the existing `announcement` type for the question owner;
+- availability notices use the safe `/course-selection` internal URL; assignment
+  and enrollment notices use `/notifications`. None contain course names,
+  identifiers, grades or client-supplied text.
 
 ### Course workflow contract
 
 | Event | Recipients | When it is created |
 |---|---|---|
-| `course_assignment` | Every active `STUDENT` and `CR` account | A pending teacher assignment request is approved |
+| `course_available` | Active `STUDENT` and `CR` accounts in the target term or a later valid current term | A teacher provides a published course in an active, term-scoped semester |
+| `course_assignment` | Active `STUDENT` and `CR` accounts eligible for the offering's target term; all active student/CR accounts for legacy unscoped semesters | A pending teacher assignment request is approved |
 | `course_enrollment` | The student and every active teacher assigned to the offering through an approved request (legacy assignments without a request remain supported) | An enrollment or reselection becomes `enrolled`, `main`, or `improvement` |
+| Course Workspace `announcement` | Active recipients selected by `enrolled_students`, `cr_only`, or `teachers_only` audience | A draft/scheduled announcement becomes published |
+| Course event `exam_reminder` | Active students enrolled in the offering | A published event enters its reminder window |
+
+Term eligibility uses `profiles_student.current_term` and the explicit ordering
+`1-1 < 1-2 < 2-1 < 2-2 < 3-1 < 3-2 < 4-1 < 4-2`. For target `3-1`, peers in
+`3-1` and seniors in `3-2`, `4-1`, or `4-2` qualify. Juniors, invalid/missing
+profile terms, inactive accounts, and other roles are excluded from scoped
+availability/assignment recipients. A legacy `NULL target_term` remains
+unrestricted by term. The same eligibility rule controls course lists,
+registration selections, enrollment, and reselection; no one is enrolled by
+receiving a notice. Existing notices are not retroactively resent.
 
 Dropped enrollments do not create an active-enrollment event. An initial `drop`
 selection is persisted without a notification, `drop()` only changes the
@@ -83,8 +105,8 @@ transition. All recipients of one transition share the same deterministic event
 UUID; the recipient/event/type uniqueness constraint prevents duplicate inbox
 rows, batches, and device-delivery rows on retries.
 
-Both course event types use fixed generic templates and the relative URL
-`/notifications` in the in-app payload and FCM data. The URL is never accepted
+Course workflow notifications use fixed generic templates and server-selected
+relative URLs in the in-app payload and FCM data. The URL is never accepted
 from a caller, and no course title, user identifier, email, grade, or
 client-supplied rejection text is copied into notification content. Per-type
 preferences are applied independently for every recipient: disabling both
@@ -188,29 +210,50 @@ quiet hours and delayed digests, provider error classification, bounded retries,
 worker interruption, broker publication failure recovery, singleton Beat ownership,
 scanner indexes and migration backfill/downgrade/schema parity.
 
-Course workflow coverage additionally checks the exact active `STUDENT`/`CR`
-assignment recipient set, approved-teacher enrollment filtering, student and
+Course workflow coverage additionally checks the exact eligible active
+`STUDENT`/`CR` availability and assignment recipient sets, same-term/senior
+inclusion and junior exclusion, approved-teacher enrollment filtering, student and
 teacher inbox rows, initial-drop suppression, reselection transitions,
 preference API readback, deterministic idempotency including outbox rows, safe
-`/notifications` URLs in inbox and FCM payloads, and transaction rollback when
-notification enqueueing fails.
+`/notifications` URLs in inbox and mocked FCM payloads, `/course-selection` in
+availability inbox readback, and transaction rollback when notification
+enqueueing fails.
 
 Run `docker-compose.test.yml` as documented in README. Transport/Celery unit
 tests additionally live in `backend/tests/test_notification_transport.py`.
 Live FCM acceptance/device display requires real credentials and a registered
 device; no live-push verification is claimed by mocked transport tests.
 
-Latest verification (2026-10-11): **316 passed, 1 skipped, 2 expected xfails**
+Phase 1 verification (2026-10-11): **316 passed, 1 skipped, 2 expected xfails**
 in the isolated PostgreSQL/Redis backend suite after the security and Phase 1
 follow-ups. The skip is the optional MinIO upload integration test; the
 remaining xfails are LAB-1 and ENR-3. Ruff, mypy (**99 source files**),
 pip-audit, frontend ESLint/typecheck and production build passed.
 
-The tested backend command (with disposable database/Redis URLs exported) was:
+Teacher/senior-eligibility follow-up (2026-10-11): **387 passed, 1 skipped,
+2 expected xfails** against isolated PostgreSQL/Redis. The same optional MinIO
+skip and LAB-1/ENR-3 gaps remain. Ruff and mypy (**100 source files**) passed;
+frontend ESLint/typecheck/build and **71 frontend unit tests** passed. Default
+Playwright checks report **5 passed, 2 opt-in tests skipped**; both opt-in live
+semester workflows were run separately against a fresh disposable stack and
+reported **2 passed**. See [workflow verification](SEMESTER_WORKFLOW_VERIFICATION.md)
+for commands. This follow-up does not claim a new dependency/security scan or
+live FCM acceptance/device display verification.
+
+Course Workspace follow-up (2026-10-12): **409 passed, 1 skipped, 2 expected
+xfails** in the isolated PostgreSQL/Redis suite. Announcement publish,
+scheduled publication, audience filtering, deterministic read/inbox behavior,
+course-event reminders, and question-answer notification paths are covered by
+the workspace tests. Frontend reports **78 unit tests** plus typecheck, ESLint,
+build, and the workspace Playwright smoke test passing. Real FCM/device display
+and hosted CI execution remain outside this local receipt.
+
+The follow-up backend test command (with disposable database/Redis URLs exported)
+and quality checks were:
 
 ```bash
-python -m pytest tests -q --tb=short -p no:cacheprovider
-python -m ruff check app tests alembic
+python -m pytest -q tests --tb=short -ra --disable-warnings
+python -m ruff check app tests alembic evals
 python -m mypy app
 ```
 

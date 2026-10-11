@@ -35,6 +35,21 @@ async def limit_resource_upload(request: Request, user: User = Depends(get_curre
     await enforce_request_limit("resource-upload-ip", get_client_ip(request), 60, 3600)
 
 
+async def limit_course_workspace(user: User = Depends(get_current_user)):
+    """Bound workspace/feed reads without coupling limits to offering IDs."""
+    await enforce_request_limit("course-workspace", str(user.id), 120)
+
+
+async def limit_course_announcement_write(user: User = Depends(get_current_user)):
+    """Bound announcement mutations per authenticated actor."""
+    await enforce_request_limit("course-announcement-write", str(user.id), 30)
+
+
+async def limit_course_question_write(user: User = Depends(get_current_user)):
+    """Bound student questions and teacher answers per authenticated actor."""
+    await enforce_request_limit("course-question-write", str(user.id), 20, 3600)
+
+
 async def limit_avatar_upload(request: Request, user: User = Depends(get_avatar_actor)):
     """Bound avatar staging URLs and post-upload validation work."""
     await enforce_request_limit("avatar-upload-user", str(user.id), 10, 3600)

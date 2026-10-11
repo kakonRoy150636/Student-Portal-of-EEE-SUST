@@ -19,7 +19,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.skipif(not ADMIN_URL, reason="Req
 BACKEND = Path(__file__).resolve().parents[1]
 SCHEMA = BACKEND.parent / "database" / "schema.sql"
 BASELINE = "20260911_0001"
-HEAD = "20261010_0011"
+HEAD = "20261012_0012"
 PREVIOUS_HEAD = "20261005_0009"
 
 
@@ -147,6 +147,11 @@ async def test_baseline_upgrade_adoption_and_downgrade():
         assert await migrated.fetchval("SELECT version_num FROM alembic_version") == HEAD
         head_catalog = await catalog(migrated)
         await latest_reference.execute(SCHEMA.read_text())
+        # The checked-in SQL snapshot is at 0011; upgrade its additive workspace
+        # revision as a real deployment would, then compare complete catalogs.
+        snapshot_url = admin_url.set(drivername="postgresql+asyncpg", database=databases[2]).render_as_string(hide_password=False)
+        await alembic(snapshot_url, "stamp", "20261010_0011")
+        await alembic(snapshot_url, "upgrade", "head")
         assert head_catalog == await catalog(latest_reference)
         # Every future deployment may run this again, including concurrently.
         await asyncio.gather(alembic(url, "upgrade", "head"), alembic(url, "upgrade", "head"))
@@ -254,3 +259,20 @@ async def test_academic_invalid_legacy_status_aborts_upgrade(academic_legacy_dat
     assert await conn.fetchval("SELECT to_regclass('teacher_assignment_requests')") is None
     assert await conn.fetchval("""SELECT count(*) FROM information_schema.columns
         WHERE table_schema='public' AND table_name='course_offerings' AND column_name='publication_status'""") == 0
+
+
+async def test_workspace_upgrade_downgrade_preserves_existing_academic_data(academic_legacy_database):
+    conn, url, offering, _ = academic_legacy_database
+    await alembic(url, "upgrade", "20261010_0011")
+    before = await conn.fetch("SELECT * FROM course_enrollments ORDER BY id")
+    await alembic(url, "upgrade", "head")
+    author = await conn.fetchval("SELECT id FROM users WHERE role='teacher' LIMIT 1")
+    announcement = await conn.fetchval("""INSERT INTO course_announcements(offering_id,author_id,title,body)
+        VALUES ($1,$2,'Migration test','Plain text') RETURNING id""", offering, author)
+    await conn.execute("INSERT INTO announcement_reads(announcement_id,user_id) VALUES ($1,$2)", announcement, author)
+    await alembic(url, "downgrade", "20261010_0011")
+    assert await conn.fetchval("SELECT to_regclass('course_announcements')") is None
+    assert await conn.fetchval("SELECT to_regclass('announcement_reads')") is None
+    assert await conn.fetch("SELECT * FROM course_enrollments ORDER BY id") == before
+    await alembic(url, "upgrade", "head")
+    assert await conn.fetchval("SELECT count(*) FROM course_announcements") == 0

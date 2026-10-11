@@ -67,6 +67,7 @@ export function CourseSelectionTable({ rows, disabled, pending, onAction }: {
               aria-label={`${actions[action]} ${row.course_code}`} onClick={() => onAction(action, row)}>
               {busy ? pendingLabels[action] : actions[action]}
             </Button>
+            {row.offering && <a className="mt-2 block text-xs font-semibold text-[var(--accent-bright)] underline underline-offset-2" href={`/student/courses/${row.id}`}>Open workspace</a>}
             {!row.selectable && <p className="mt-2 max-w-xs text-xs text-[var(--text-muted)]">
               Unavailable: only published offerings in an active semester can be changed.
             </p>}

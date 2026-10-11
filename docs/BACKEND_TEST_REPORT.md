@@ -93,7 +93,7 @@ explicitly calls `pytest.xfail` as a blocked-case marker; replace it with
 unmet/met-prerequisite behavior tests when the domain model exists. It is not a
 tested prerequisite check.
 
-## Current follow-up verification (2026-10-11)
+## Phase 1 follow-up verification (2026-10-11)
 
 - The isolated backend suite reports **316 passed, 1 skipped, 2 xfailed**. The
   remaining expected failures are the lab-bench contract (`LAB-1`) and the
@@ -108,6 +108,39 @@ In the 2026-10-03 baseline, the notification uniqueness key referenced the
 recurring schedule rather than a dated occurrence. The current scanner derives
 event identity from schedule ID plus local occurrence date; external FCM remains
 a mocked boundary, so no live push delivery is claimed.
+
+## Teacher/senior-eligibility verification (2026-10-11)
+
+- Full isolated backend suite: **387 passed, 1 skipped, 2 xfailed** in 180.90
+  seconds. The optional upload test needs isolated MinIO configuration; LAB-1
+  and ENR-3 remain the expected gaps. No new coverage percentage was measured.
+- New API tests exercise all eight ordered terms for student/CR lists and
+  enrollment, invalid/missing profiles, legacy unscoped semesters, teacher-only
+  provision, exact notification recipients, voluntary enrollment, and retained
+  credit boundaries. Junior registration/reselection failures leave no partial
+  account, enrollment, or notification changes.
+- New PostgreSQL integration tests repeat the term/recipient/rollback contracts
+  against migrated schema and real request transactions, not SQLite substitutes.
+- Ruff and mypy (100 source files) passed. Frontend verification reports 71 unit
+  tests and two separately executed live semester workflows passing; see
+  [workflow verification](SEMESTER_WORKFLOW_VERIFICATION.md). These results do
+  not replace the historical coverage table or claim live FCM delivery.
+
+## Course Workspace verification (2026-10-12)
+
+- Full isolated backend suite: **409 passed, 1 skipped, 2 xfailed**. The
+  optional MinIO upload test remains skipped; LAB-1 and ENR-3 remain the two
+  documented expected gaps.
+- Course Workspace tests cover offering-scope authorization, teacher provider /
+  approved-assignment access, active learner scope, announcement lifecycle and
+  deterministic notification behavior, plain-text sanitization, resources,
+  events/reminder scheduling, and moderated student questions/answers.
+- Alembic migration `20261012_0012_course_workspace` creates announcement/read,
+  offering-resource, event, and question tables with foreign keys, indexes,
+  check constraints, and a safe downgrade.
+- Ruff and mypy (104 source files) passed. Frontend reports **78 unit tests**,
+  typecheck, ESLint, production build, and the Course Workspace Playwright smoke
+  test passing. Live FCM/device acceptance is not claimed.
 
 ## Bugs fixed while establishing the tests
 

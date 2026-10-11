@@ -27,16 +27,24 @@ const controlClassName =
 
 export type ProvisioningSemester = Semester & { target_term: string };
 
+const VALID_TERMS = ['1-1', '1-2', '2-1', '2-2', '3-1', '3-2', '4-1', '4-2'];
+
 export function isProvisioningSemester(semester: Semester): semester is ProvisioningSemester {
   return (
-    semester.is_active &&
     typeof semester.target_term === 'string' &&
     semester.target_term.trim().length > 0
   );
 }
 
 export function getProvisioningSemesters(semesters: Semester[]): ProvisioningSemester[] {
-  return semesters.filter(isProvisioningSemester);
+  return semesters
+    .filter(isProvisioningSemester)
+    .sort((a, b) => {
+      const indexA = VALID_TERMS.indexOf(a.target_term);
+      const indexB = VALID_TERMS.indexOf(b.target_term);
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      return a.target_term.localeCompare(b.target_term);
+    });
 }
 
 export function isCourseProvisionConflict(error: unknown): boolean {
@@ -72,6 +80,7 @@ export function TeacherCourseOfferingDialog({
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [validationError, setValidationError] = useState('');
   const scopedSemesters = useMemo(() => getProvisioningSemesters(semesters), [semesters]);
+  const selectedSemester = scopedSemesters.find((semester) => String(semester.id) === form.semesterId);
   const conflict = isCourseProvisionConflict(error);
 
   useEffect(() => {
@@ -105,21 +114,20 @@ export function TeacherCourseOfferingDialog({
       return;
     }
     const creditHours = Number(form.credits);
-    const creditIsInTenth = Math.abs(creditHours * 10 - Math.round(creditHours * 10)) < 1e-8;
-    if (!Number.isFinite(creditHours) || creditHours < 0.1 || creditHours > 99.9 || !creditIsInTenth) {
-      setValidationError('Credits must be between 0.1 and 99.9 in 0.1 increments.');
+    const creditIsInHalf = Math.abs(creditHours * 2 - Math.round(creditHours * 2)) < 1e-8;
+    if (!Number.isFinite(creditHours) || creditHours < 0.5 || creditHours > 99.5 || !creditIsInHalf) {
+      setValidationError('Credits must be between 0.5 and 99.5 in 0.5 increments.');
       return;
     }
     if (!form.courseType) {
       setValidationError('Course type (theory/lab) is required.');
       return;
     }
-    const selectedSemester = scopedSemesters.find((semester) => String(semester.id) === form.semesterId);
     if (!selectedSemester) {
       setValidationError(
         scopedSemesters.length > 0
-          ? 'Select an active semester with a target term.'
-          : 'No active semester with a target term is available for course provision.',
+          ? 'Select a semester with a target term.'
+          : 'No semester with a target term is available for course provision.',
       );
       return;
     }
@@ -151,17 +159,17 @@ export function TeacherCourseOfferingDialog({
         if (!pending) onOpenChange(nextOpen);
       }}
     >
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] overflow-y-auto" aria-describedby="teacher-offering-summary">
         <DialogHeader>
           <DialogTitle>Offer a course</DialogTitle>
-          <p className="mt-2 text-sm text-[var(--text-muted)]">
-            Publish a course immediately with no separate admin approval. Matching-term students can choose to enroll; no enrollment is created automatically.
+          <p id="teacher-offering-summary" className="mt-2 text-sm text-[var(--text-muted)]">
+            Publish a course immediately with no separate admin approval. Enrollment is voluntary; no student or CR is enrolled automatically.
           </p>
         </DialogHeader>
 
         {Boolean(semesterError) && (
           <div className="mb-4 space-y-1 rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] p-3" role="alert">
-            <p className="font-semibold text-[var(--danger)]">Could not load active semesters.</p>
+            <p className="font-semibold text-[var(--danger)]">Could not load semesters.</p>
             <p className="text-sm text-[var(--danger)]">{getErrorMessage(semesterError, 'Refresh the page and try again.')}</p>
           </div>
         )}
@@ -170,12 +178,12 @@ export function TeacherCourseOfferingDialog({
           <div className="mb-4">
             <EmptyState
               title="No course-provision semesters"
-              description="An active semester with a target term is required before you can offer a course. Ask an administrator to configure one, then refresh."
+              description="A semester with a target term is required before you can offer a course. Ask an administrator to configure one, then refresh."
             />
           </div>
         )}
         {semestersLoading && (
-          <p role="status" className="mb-4 text-sm text-[var(--text-muted)]">Loading active semesters…</p>
+          <p role="status" className="mb-4 text-sm text-[var(--text-muted)]">Loading semesters…</p>
         )}
 
         <form className="space-y-4" noValidate onSubmit={submit}>
@@ -209,16 +217,16 @@ export function TeacherCourseOfferingDialog({
               <Input
                 id="teacher-offering-credits"
                 type="number"
-                min="0.1"
-                max="99.9"
-                step="0.1"
+                min="0.5"
+                max="99.5"
+                step="0.5"
                 value={form.credits}
                 onChange={(event) => update('credits', event.target.value)}
                 disabled={pending}
                 required
                 inputMode="decimal"
               />
-              <p className="mt-1 text-xs text-[var(--text-muted)]">Enter 0.1–99.9 credits in 0.1 increments.</p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">Enter 0.5–99.5 credits in 0.5 increments.</p>
             </div>
 
             <div>
@@ -243,6 +251,7 @@ export function TeacherCourseOfferingDialog({
             <select
               id="teacher-offering-semester"
               className={controlClassName}
+              aria-describedby="teacher-offering-semester-hint teacher-offering-eligibility"
               value={form.semesterId}
               onChange={(event) => update('semesterId', event.target.value)}
               disabled={pending || semestersLoading || scopedSemesters.length === 0}
@@ -255,7 +264,10 @@ export function TeacherCourseOfferingDialog({
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">Only active semesters with a target term can receive teacher-provided courses.</p>
+            <p id="teacher-offering-semester-hint" className="mt-1 text-xs text-[var(--text-muted)]">Select the target semester/term for this course offering.</p>
+            <p id="teacher-offering-eligibility" aria-live="polite" className="mt-2 text-sm text-[var(--text-muted)]">
+              Students and CRs in {selectedSemester ? `target term ${selectedSemester.target_term}` : 'the target term'} or a later valid current term (seniors) can view this course, receive notices, and choose to enroll. Juniors in earlier terms are excluded.
+            </p>
           </div>
 
           <div>
@@ -282,7 +294,7 @@ export function TeacherCourseOfferingDialog({
                   <p className="text-sm text-[var(--danger)]">
                     {conflict
                       ? 'Choose a different course code or semester, or refresh the teacher offerings.'
-                      : 'Check the required fields and active semester, then try again. Your entries are still here.'}
+                      : 'Check the required fields and semester, then try again. Your entries are still here.'}
                   </p>
                 </>
               )}

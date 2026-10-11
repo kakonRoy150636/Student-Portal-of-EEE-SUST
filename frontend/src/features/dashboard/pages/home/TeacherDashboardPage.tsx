@@ -1,10 +1,13 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 import { DashboardHero } from './DashboardHero';
 import { TeacherQuickStats } from './TeacherQuickStats';
 import { TodayRoutine } from '../../components/TodayRoutine';
 import { useDashboardSummary } from '../../hooks/useDashboardSummary';
 
 export const TeacherDashboardPage = () => {
+  const navigate = useNavigate();
   const { data, isLoading } = useDashboardSummary();
   const t = data?.teacher;
 
@@ -13,7 +16,8 @@ export const TeacherDashboardPage = () => {
       <DashboardHero
         roleName="TEACHER"
         unreadNotifications={t?.unread_notifications}
-        greetingHint="Assigned courses, today’s classes, and pending reviews."
+        greetingHint="Offer courses, review today’s classes, and manage pending requests."
+        action={<Button onClick={() => navigate('/teacher-assignment')}>Offer a course</Button>}
       />
       <TeacherQuickStats data={t} loading={isLoading} />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

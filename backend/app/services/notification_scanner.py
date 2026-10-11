@@ -1,6 +1,6 @@
 import uuid
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, text
 
@@ -12,10 +12,12 @@ from app.models.academic import (
     Semester,
 )
 from app.models.user import User
+from app.models.course_workspace import CourseEvent
 from app.models.notification import NotificationLog, NotificationPreference
 from app.services.notification_service import NotificationService, DHAKA, channels, next_push_time, utcnow
 
 OCCURRENCE_NAMESPACE = uuid.UUID("f2695e1e-2cbd-4dcb-8fba-3ac6f36cf774")
+COURSE_EVENT_NAMESPACE = uuid.UUID("b8e8f19a-1f45-4f5d-bf5f-17c1ef2e8f2c")
 
 
 async def scan_classes(db, now=None):
@@ -68,3 +70,40 @@ async def group_digest(db, now=None):
             continue
         groups[(log.user_id, log.type)].append(log)
     return [await NotificationService(db).make_batch(items, now) for items in groups.values()]
+
+
+async def scan_course_event_reminders(db, now=None):
+    """Enqueue one durable reminder per published course event and learner."""
+    now = now or utcnow()
+    horizon = now + timedelta(days=7)
+    events = list((await db.scalars(
+        select(CourseEvent).where(
+            CourseEvent.is_published.is_(True),
+            CourseEvent.archived_at.is_(None),
+            CourseEvent.starts_at >= now,
+            CourseEvent.starts_at <= horizon,
+        )
+    )).all())
+    created, batches = 0, []
+    for event in events:
+        starts_at = event.starts_at if event.starts_at.tzinfo else event.starts_at.replace(tzinfo=timezone.utc)
+        reminder = event.reminder_minutes if event.reminder_minutes is not None else 30
+        if starts_at - timedelta(minutes=reminder) > now:
+            continue
+        student_ids = list((await db.scalars(
+            select(CourseEnrollment.student_id)
+            .join(User, User.id == CourseEnrollment.student_id)
+            .where(
+                CourseEnrollment.course_offering_id == event.offering_id,
+                CourseEnrollment.status.in_(ACTIVE_ENROLLMENT_STATUSES),
+                User.is_active.is_(True),
+            )
+        )).all())
+        for student_id in student_ids:
+            event_id = uuid.uuid5(COURSE_EVENT_NAMESPACE, f"{event.id}:{student_id}")
+            result = await NotificationService(db).enqueue(student_id, event_id, "exam_reminder", "high", now)
+            if result:
+                created += 1
+                if result[1]:
+                    batches.append(result[1])
+    return created, batches

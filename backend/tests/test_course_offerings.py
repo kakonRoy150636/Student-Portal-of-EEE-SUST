@@ -26,10 +26,11 @@ from tests.conftest import auth_header, make_user
 pytestmark = pytest.mark.asyncio
 
 
-async def make_offering(db, *, admin=None, active=True, published=True, credits=3.0):
+async def make_offering(db, *, admin=None, active=True, published=True, credits=3.0, target_term=None):
     suffix = uuid.uuid4().hex[:8]
     semester = Semester(
         title=f"Term {suffix}",
+        target_term=target_term,
         is_active=active,
         start_date=date(2026, 1, 1),
         end_date=date(2026, 12, 31),
@@ -119,13 +120,13 @@ async def test_admin_can_read_active_semesters_for_offering_management(client, d
     assert all(row["is_active"] for row in response.json())
 
 
-async def test_teacher_can_provide_a_scoped_course_and_only_matching_students_can_enroll(client, db):
+async def test_teacher_can_provide_a_scoped_course_and_juniors_cannot_enroll(client, db):
     teacher = await make_user(db, role=UserRole.TEACHER)
     matching_student = await make_user(db, role=UserRole.STUDENT)
     other_student = await make_user(db, role=UserRole.STUDENT)
     db.add_all([
         StudentProfile(user_id=matching_student.id, session_year="2023-2024", current_term="3-1"),
-        StudentProfile(user_id=other_student.id, session_year="2023-2024", current_term="3-2"),
+        StudentProfile(user_id=other_student.id, session_year="2023-2024", current_term="2-2"),
     ])
     semester = Semester(
         title="Term 3-1, 2030",

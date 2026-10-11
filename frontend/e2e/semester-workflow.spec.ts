@@ -241,3 +241,98 @@ test('live semester workflow: creation, assignment, notifications, enrollment cr
     await Promise.all(contexts.map((context) => context.close()));
   }
 });
+
+test('live teacher offering: dashboard entry, same-term and senior enrollment, junior exclusion', async ({ browser, baseURL, request }) => {
+  test.skip(process.env.SEMESTER_E2E !== '1', 'Requires the disposable seeded semester stack.');
+  test.setTimeout(90_000);
+  const suffix = Date.now().toString();
+  const courseCode = `E2E ${suffix.slice(-7)}`;
+  const contexts: BrowserContext[] = [];
+  const session = async (identifier: string, password: string) => {
+    const context = await browser.newContext({ baseURL, serviceWorkers: 'block' });
+    contexts.push(context);
+    return login(await context.newPage(), identifier, password);
+  };
+  try {
+    // Disposable accounts use the real registration API, not forged sessions or DB mocks.
+    for (const [label, term] of [['senior', '4-1'], ['junior', '2-2']]) {
+      const registration = await request.post(apiUrl(`${apiBase}/auth/register/student`), { data: {
+        full_name: `${label} Course Student`, identifier: `${label}-${suffix}`,
+        email: `${label}-${suffix}@example.com`, password: 'E2eStudent123!',
+        session_year: '2023-2024', current_term: term, course_selections: [],
+      } });
+      expect(registration.status()).toBe(201);
+    }
+    const teacher = await session('tasfik-rahman', 'password123');
+    const peer = await session('2023338049', 'password123');
+    const senior = await session(`senior-${suffix}`, 'E2eStudent123!');
+    const junior = await session(`junior-${suffix}`, 'E2eStudent123!');
+    const beforeInboxes = await Promise.all([peer, senior, junior].map(inbox));
+    for (const student of [peer, senior, junior]) {
+      await expect(student.page.getByRole('button', { name: 'Offer a course', exact: true })).toHaveCount(0);
+    }
+
+    const semesterResponse = await teacher.page.request.get(apiUrl(`${offeringsBase}/semesters/active`), { headers: teacher.headers });
+    expect(semesterResponse.status()).toBe(200);
+    const semesters: { id: number; target_term: string | null }[] = await semesterResponse.json();
+    const semester = semesters.find((row) => row.target_term === '3-1');
+    expect(semester).toBeTruthy();
+    await teacher.page.getByRole('button', { name: 'Offer a course', exact: true }).click();
+    await expect(teacher.page).toHaveURL(/\/teacher-assignment$/);
+    await teacher.page.getByRole('button', { name: 'Offer a course', exact: true }).click();
+    const dialog = teacher.page.getByRole('dialog', { name: 'Offer a course' });
+    await dialog.getByLabel('Course code', { exact: true }).fill(courseCode);
+    await dialog.getByLabel('Course name', { exact: true }).fill('Senior Eligibility Course');
+    await dialog.getByLabel('Credits', { exact: true }).fill('3');
+    await dialog.getByLabel('Course type (theory/lab)', { exact: true }).selectOption('theory');
+    await dialog.getByLabel('Semester', { exact: true }).selectOption(String(semester!.id));
+    const created = await mutateFromUi(teacher.page, `${offeringsBase}/provide`, 'POST',
+      () => dialog.getByRole('button', { name: 'Offer a course', exact: true }).click());
+    expect(created.status()).toBe(201);
+    const offering = await created.json();
+    expect(offering.publication_status).toBe('published');
+    expect(offering.assigned_teachers.map((row: { teacher_id: string }) => row.teacher_id)).toEqual([teacher.user.id]);
+    await expect(dialog).toHaveCount(0);
+
+    // Everyone starts unenrolled. Only the peer and senior receive the availability event.
+    for (const [index, student] of [peer, senior, junior].entries()) {
+      const priorIds = new Set(beforeInboxes[index].map((item) => item.id));
+      const added = (await inbox(student)).filter((item) => !priorIds.has(item.id));
+      expect(added.map((item) => item.data_payload.type)).toEqual(index < 2 ? ['course_available'] : []);
+      for (const item of added) expect(item.data_payload.url).toBe('/course-selection');
+      const enrollments = await student.page.request.get(apiUrl(`${offeringsBase}/enrollments/me`), { headers: student.headers });
+      expect(enrollments.status()).toBe(200);
+      expect((await enrollments.json()).some((row: { course_offering_id: string }) => row.course_offering_id === offering.id)).toBe(false);
+    }
+    for (const student of [peer, senior]) {
+      await student.page.goto('/course-selection');
+      const select = student.page.getByRole('button', { name: `Select ${courseCode}`, exact: true });
+      await expect(select).toBeVisible();
+      const enrolled = await mutateFromUi(student.page, `${offeringsBase}/${offering.id}/enroll`, 'POST', () => select.click());
+      expect(enrolled.status()).toBe(201);
+      await expect(student.page.getByRole('button', { name: `Drop ${courseCode}`, exact: true })).toBeVisible();
+    }
+    await junior.page.goto('/course-selection');
+    await expect(junior.page.getByRole('heading', { name: 'Course selection', exact: true })).toBeVisible();
+    await expect(junior.page.getByText('No active semester', { exact: true })).toBeVisible();
+    await expect(junior.page.getByText(courseCode, { exact: true })).toHaveCount(0);
+    const denied = await junior.page.request.post(apiUrl(`${offeringsBase}/${offering.id}/enroll`), { headers: junior.headers });
+    expect(denied.status()).toBe(403);
+    const studentProvide = await peer.page.request.post(apiUrl(`${offeringsBase}/provide`), {
+      headers: peer.headers,
+      data: { course_code: courseCode, title: 'Not allowed', credit_hours: 3, course_type: 'theory', semester_id: semester!.id },
+    });
+    expect(studentProvide.status()).toBe(403);
+
+    const rosterResponse = await teacher.page.request.get(apiUrl(`${offeringsBase}/${offering.id}/roster`), { headers: teacher.headers });
+    expect(rosterResponse.status()).toBe(200);
+    const roster: { student_id: string }[] = await rosterResponse.json();
+    expect(roster.map((row) => row.student_id).sort()).toEqual([peer.user.id, senior.user.id].sort());
+    await teacher.page.getByRole('row').filter({ hasText: courseCode }).getByRole('button', { name: 'View roster' }).click();
+    await expect(teacher.page.getByText(peer.user.full_name, { exact: true }).first()).toBeVisible();
+    await expect(teacher.page.getByText(senior.user.full_name, { exact: true }).first()).toBeVisible();
+    await expect(teacher.page.getByText(junior.user.full_name, { exact: true })).toHaveCount(0);
+  } finally {
+    await Promise.all(contexts.map((context) => context.close()));
+  }
+});

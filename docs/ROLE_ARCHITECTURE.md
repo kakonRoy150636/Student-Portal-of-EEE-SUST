@@ -89,6 +89,23 @@ On successful registration:
 3. Backend `RequireRole` remains authoritative for API access; frontend visibility is only a UX layer.
 4. CR and ER accounts are stored as inactive until admin approval, so they cannot authenticate before approval.
 
+### Course Workspace permissions
+
+Course Workspace reuses `course_offerings` and applies an offering-level scope in
+the backend:
+
+- **Teacher:** may open and manage a workspace only when assigned, approved for
+  the offering, or recorded as its valid provider/creator.
+- **Super admin:** may manage every offering workspace and announcement.
+- **Student/CR:** may open a published offering only with an active enrollment;
+  they see published announcements/resources/events and may ask questions.
+- **Other roles:** cannot use learner or teacher workspace endpoints.
+
+Frontend routes (`/teacher/courses/:offeringId` and
+`/student/courses/:offeringId`) are convenience guards only. The API repeats the
+same checks for every workspace, announcement, resource, event, and question
+operation, so changing an offering UUID cannot widen access.
+
 ## Backend Changes
 
 - `auth.schemas.StudentRegisterRequest.role` extended: `Literal["student","cr","er"]`

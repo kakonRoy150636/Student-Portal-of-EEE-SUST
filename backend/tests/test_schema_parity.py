@@ -17,6 +17,15 @@ import app.models  # noqa: F401  (registers every mapper)
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_SQL = REPO_ROOT / "database" / "schema.sql"
 MIGRATIONS_DIR = REPO_ROOT / "database" / "migrations"
+# New tables introduced after the SQL snapshot must have a matching additive
+# migration; integration tests exercise its real DDL and constraints.
+ALEMBIC_ONLY_TABLES = {
+    "announcement_reads",
+    "course_announcements",
+    "course_resources",
+    "course_events",
+    "course_questions",
+}
 
 
 def _table_names_in_schema_sql() -> set[str]:
@@ -82,9 +91,24 @@ def test_absent_column_stays_absent(table, column):
 def test_every_orm_table_is_created_in_schema_sql():
     """The reverse direction: any table added to the ORM must be bootstrapped."""
     missing = sorted(
-        table for table in Base.metadata.tables if table not in _table_names_in_schema_sql()
+        table
+        for table in Base.metadata.tables
+        if table not in _table_names_in_schema_sql() and table not in ALEMBIC_ONLY_TABLES
     )
     assert not missing, f"ORM tables absent from schema.sql: {missing}"
+
+
+def test_course_workspace_tables_are_migration_backed():
+    # The Docker test image copies backend/ to /app and mounts database/ at
+    # /database, while a source checkout keeps this file under repo/backend/.
+    # Resolve the migration relative to the tests package so the parity guard
+    # exercises the same file in both layouts.
+    migration_path = Path(__file__).resolve().parents[1] / "alembic" / "versions" / "20261012_0012_course_workspace.py"
+    migration = migration_path.read_text()
+    for table in ALEMBIC_ONLY_TABLES:
+        assert f"CREATE TABLE IF NOT EXISTS {table}" in migration
+        for column in Base.metadata.tables[table].columns:
+            assert re.search(rf"\b{column.name}\s+(UUID|TIMESTAMPTZ|TEXT|VARCHAR|BOOLEAN|INTEGER)", migration)
 
 
 def test_parity_migration_exists_and_is_idempotent():

@@ -11,6 +11,7 @@ interface DashboardHeroProps {
   /** Only rendered when a count is actually known. */
   unreadNotifications?: number;
   greetingHint?: string;
+  action?: React.ReactNode;
 }
 
 /**
@@ -24,6 +25,7 @@ export const DashboardHero = ({
   roleName,
   unreadNotifications,
   greetingHint,
+  action,
 }: DashboardHeroProps) => {
   const { user } = useAuth();
   const name = user?.full_name || 'there';
@@ -48,6 +50,7 @@ export const DashboardHero = ({
             <p className="mt-1 text-sm text-[var(--text-muted)]">
               {greetingHint ?? 'Department of Electrical and Electronic Engineering · SUST'}
             </p>
+            {action && <div className="mt-3">{action}</div>}
           </div>
         </div>
 

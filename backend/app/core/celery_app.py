@@ -13,8 +13,16 @@ celery_app.conf.timezone = "Asia/Dhaka"
 celery_app.conf.enable_utc = True
 celery_app.conf.broker_connection_retry_on_startup = True
 celery_app.conf.beat_schedule = {
+    "publish-scheduled-course-announcements": {
+        "task": "app.tasks.notifications.publish_scheduled_course_announcements",
+        "schedule": crontab(minute="*"),
+    },
     "scan-10-minute-class-alerts": {
         "task": "app.tasks.notifications.scan_upcoming_class_alerts",
+        "schedule": crontab(minute="*"),
+    },
+    "scan-course-event-reminders": {
+        "task": "app.tasks.notifications.scan_upcoming_course_event_reminders",
         "schedule": crontab(minute="*"),
     },
     "medium-notification-digest": {

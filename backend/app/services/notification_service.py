@@ -119,6 +119,42 @@ class NotificationService:
         return await self.get_preferences(user_id)
 
     async def enqueue(self, user_id, event_id, type_: str, priority: str, now=None):
+        """Enqueue a generic notification with a server-owned destination."""
+        return await self._enqueue(user_id, event_id, type_, priority, now=now)
+
+    async def enqueue_course_announcement(
+        self,
+        user_id,
+        event_id,
+        offering_id,
+        announcement_id,
+        priority: str,
+        now=None,
+    ):
+        """Enqueue a course announcement with a safe same-origin deep link.
+
+        The URL is assembled only from UUIDs belonging to rows selected by the
+        workspace service. Callers cannot provide an arbitrary destination or
+        notification content.
+        """
+        try:
+            offering = uuid.UUID(str(offering_id))
+            announcement = uuid.UUID(str(announcement_id))
+        except (TypeError, ValueError, AttributeError) as exc:
+            raise ValueError("Course announcement identifiers must be UUIDs.") from exc
+        return await self._enqueue(
+            user_id,
+            event_id,
+            "announcement",
+            priority,
+            now=now,
+            data_payload={
+                "type": "course_announcement",
+                "url": f"/course-offerings/{offering}/workspace?announcement_id={announcement}",
+            },
+        )
+
+    async def _enqueue(self, user_id, event_id, type_: str, priority: str, now=None, data_payload=None):
         """Transaction owned by caller; return (log_id, high_batch_id) or None.
 
         No caller-controlled title/body/data: even internal tasks cannot put
@@ -148,7 +184,7 @@ class NotificationService:
         if in_app:
             title, body = TEMPLATES[type_]
             notification = Notification(recipient_id=user_id, title=title, body=body,
-                                        data_payload={"type": type_, "url": NOTIFICATION_URLS[type_]})
+                                        data_payload=data_payload or {"type": type_, "url": NOTIFICATION_URLS[type_]})
             self.db.add(notification)
             await self.db.flush()
             log.notification_id = notification.id

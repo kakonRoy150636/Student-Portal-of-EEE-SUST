@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PageSkeleton } from '@/components/shared/PageSkeleton';
@@ -24,6 +25,10 @@ import {
   useMyAssignmentRequests,
   useRequestAssignment,
 } from '../hooks/useTeacherAssignment';
+import { courseWorkspaceApi } from '@/features/course-workspace/api/courseWorkspaceApi';
+import { courseWorkspaceQueryKeys } from '@/features/course-workspace/hooks/useCourseWorkspace';
+import { TeacherWorkspaceCards } from '../components/TeacherWorkspaceCards';
+import type { CourseWorkspace } from '@/types/courseWorkspace';
 
 function RosterPanel({
   offeringId,
@@ -109,6 +114,17 @@ export default function TeacherAssignmentPage() {
     () => rows.filter((row) => !row.isProvided),
     [rows],
   );
+  const workspaceRows = useMemo(
+    () => rows.filter((row) => row.isAssigned || row.ownStatus === 'approved'),
+    [rows],
+  );
+  const workspaceQueries = useQueries({
+    queries: workspaceRows.map((row) => ({
+      queryKey: courseWorkspaceQueryKeys.detail(row.id, true),
+      queryFn: async ({ signal }): Promise<CourseWorkspace> => (await courseWorkspaceApi.getWorkspace(row.id, true, signal)).data,
+      retry: false,
+    })),
+  });
   const provisioningSemesters = useMemo(
     () => getProvisioningSemesters(activeSemestersQuery.data ?? []),
     [activeSemestersQuery.data],
@@ -167,7 +183,7 @@ export default function TeacherAssignmentPage() {
           <div>
             <CardTitle>Offer a course</CardTitle>
             <p className="mt-1 max-w-2xl text-sm text-[var(--text-muted)]">
-              Provide a course directly from this page. It publishes immediately with no separate admin approval, and matching-term students can choose to enroll.
+              Publish immediately with no separate admin approval. Students and CRs in the target term or a later valid current term (seniors) can view the course, receive notices, and choose to enroll. Juniors are excluded; enrollment is never automatic.
             </p>
           </div>
           <Button size="lg" onClick={openProvideDialog} disabled={provideMutation.isPending || activeSemestersQuery.isPending}>
@@ -209,9 +225,11 @@ export default function TeacherAssignmentPage() {
       )}
       {provideSuccess && (
         <p role="status" className="text-sm text-[var(--success)]">
-          Course offered successfully. It is published now, and matching-term students can choose to enroll.
+          Course offered successfully. It is published now for same-term students and CRs and eligible seniors. Enrollment is voluntary; no one was enrolled automatically.
         </p>
       )}
+
+      {!isLoading && !hasError && <TeacherWorkspaceCards offerings={workspaceRows} queries={workspaceQueries} />}
 
       {isLoading && <PageSkeleton cards={1} rows={5} />}
       {hasError && (
@@ -236,7 +254,7 @@ export default function TeacherAssignmentPage() {
           <CardHeader>
             <CardTitle>Your provided courses</CardTitle>
             <p className="text-sm text-[var(--text-muted)]">
-              These courses are published immediately for matching-term students. Open a roster to see enrolled students.
+              These courses are published for same-term students and CRs and seniors in later valid current terms; juniors are excluded. Open a roster to see those who chose to enroll.
             </p>
           </CardHeader>
           <CardContent className="p-0">
