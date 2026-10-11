@@ -10,8 +10,8 @@ This does not attest to deployed secrets, credential rotation or Git history cle
 
 This follow-up closes the confirmed issues found while reviewing request abuse,
 input boundaries, object storage, attendance/event state, and browser session
-lifecycle. These changes are committed and pushed as `0dcb65d` (`fix: harden
-portal security boundaries`).
+lifecycle. These changes are committed and pushed as `6df2fc0` (`feat: enforce
+phase one portal boundaries`).
 
 | Area | Change |
 |---|---|
