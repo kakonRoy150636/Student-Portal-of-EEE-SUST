@@ -125,32 +125,35 @@ class ResourceService:
 
         client = _s3_client()
         try:
-            head = await run_in_threadpool(client.head_object, Bucket=settings.S3_BUCKET_NAME, Key=payload.file_key)
-        except (BotoCoreError, ClientError) as exc:
-            raise FileNotFoundError("The uploaded object could not be found.") from exc
+            try:
+                head = await run_in_threadpool(
+                    client.head_object, Bucket=settings.S3_BUCKET_NAME, Key=payload.file_key
+                )
+            except (BotoCoreError, ClientError) as exc:
+                raise FileNotFoundError("The uploaded object could not be found.") from exc
 
-        stored_size = int(head.get("ContentLength", 0))
-        if stored_size <= 0 or stored_size > MAX_RESOURCE_BYTES:
-            await run_in_threadpool(_delete_quietly, client, payload.file_key)
-            raise ValueError("The uploaded file must be between 1 byte and 25 MB.")
-        if head.get("ContentType") != expected_type:
-            await run_in_threadpool(_delete_quietly, client, payload.file_key)
-            raise ValueError("The uploaded content type does not match its file extension.")
+            stored_size = int(head.get("ContentLength", 0))
+            if stored_size <= 0 or stored_size > MAX_RESOURCE_BYTES:
+                raise ValueError("The uploaded file must be between 1 byte and 25 MB.")
+            if head.get("ContentType") != expected_type:
+                raise ValueError("The uploaded content type does not match its file extension.")
 
-        course_id = await self.db.scalar(
-            select(Course.id).where(Course.course_code == payload.course_code)
-        )
-        if course_id is None:
-            raise ValueError(f"Unknown course code '{payload.course_code}'.")
-        if not payload.file_name.lower().endswith(extension) or payload.mime_type != expected_type:
-            raise ValueError("File name/type does not match the upload key.")
+            course_id = await self.db.scalar(
+                select(Course.id).where(Course.course_code == payload.course_code)
+            )
+            if course_id is None:
+                raise ValueError(f"Unknown course code '{payload.course_code}'.")
+            if not payload.file_name.lower().endswith(extension) or payload.mime_type != expected_type:
+                raise ValueError("File name/type does not match the upload key.")
 
-        try:
             published_key, stored_size = await run_in_threadpool(
                 publish_upload, client, payload.file_key, extension, expected_type,
                 MAX_RESOURCE_BYTES, expected_prefix,
             )
         except ValueError:
+            # A validly scoped presigned PUT is still untrusted until all
+            # metadata and bytes pass validation. Do not leave rejected staging
+            # objects available to consume the bucket indefinitely.
             await run_in_threadpool(_delete_quietly, client, payload.file_key)
             raise
         except (BotoCoreError, ClientError) as exc:

@@ -10,6 +10,7 @@ def production_credentials(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://portal:unique-test-db-password@postgres/portal")
     monkeypatch.setenv("S3_ACCESS_KEY", "portal-test")
     monkeypatch.setenv("S3_SECRET_KEY", "unique-test-storage-password")
+    monkeypatch.setenv("S3_PUBLIC_ENDPOINT_URL", "https://storage.example.com")
 
 
 @pytest.mark.parametrize("key,origins", [
@@ -27,6 +28,34 @@ def test_production_rejects_unsafe_config(key, origins):
 def test_production_accepts_https_origin():
     env = {**os.environ, "ENVIRONMENT": "production", "SECRET_KEY": "a" * 64, "CORS_ORIGINS": '["https://portal.example.com"]'}
     result = subprocess.run([sys.executable, "-c", "import app.core.config"], env=env, capture_output=True)
+    assert result.returncode == 0, result.stderr.decode()
+
+
+def test_production_rejects_plaintext_public_storage_endpoint():
+    env = {
+        **os.environ,
+        "ENVIRONMENT": "production",
+        "SECRET_KEY": "a" * 64,
+        "CORS_ORIGINS": '["https://portal.example.com"]',
+        "S3_PUBLIC_ENDPOINT_URL": "http://storage.example.com",
+    }
+    result = subprocess.run([sys.executable, "-c", "import app.core.config"], env=env, capture_output=True)
+    assert result.returncode != 0
+    assert b"S3_PUBLIC_ENDPOINT_URL" in result.stderr
+
+
+def test_production_switch_is_case_insensitive_for_runtime_config():
+    env = {
+        **os.environ,
+        "ENVIRONMENT": "Production",
+        "SECRET_KEY": "a" * 64,
+        "CORS_ORIGINS": '["https://portal.example.com"]',
+    }
+    result = subprocess.run(
+        [sys.executable, "-c", "from app.core.config import settings; assert settings.is_production"],
+        env=env,
+        capture_output=True,
+    )
     assert result.returncode == 0, result.stderr.decode()
 
 

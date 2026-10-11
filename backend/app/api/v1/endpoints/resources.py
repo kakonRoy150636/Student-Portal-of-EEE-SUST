@@ -21,7 +21,7 @@ from app.schemas.resource import (
     ResourceResponse,
 )
 from app.services.resource_service import ResourceService
-from app.api.request_limits import limit_search
+from app.api.request_limits import limit_resource_upload, limit_search
 
 router = APIRouter(prefix="/resources", tags=["Resources"])
 
@@ -35,7 +35,11 @@ async def search(
     return await ResourceService(db).search_resources(q)
 
 
-@router.post("/presigned-upload", response_model=PresignedUploadResponse)
+@router.post(
+    "/presigned-upload",
+    response_model=PresignedUploadResponse,
+    dependencies=[Depends(limit_resource_upload)],
+)
 async def presigned_upload(
     payload: PresignedUploadRequest,
     db: AsyncSession = Depends(get_db),
@@ -49,7 +53,11 @@ async def presigned_upload(
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
 
 
-@router.post("/finalize", response_model=FinalizeResourceResponse)
+@router.post(
+    "/finalize",
+    response_model=FinalizeResourceResponse,
+    dependencies=[Depends(limit_resource_upload)],
+)
 async def finalize(
     payload: FinalizeResourceRequest,
     db: AsyncSession = Depends(get_db),

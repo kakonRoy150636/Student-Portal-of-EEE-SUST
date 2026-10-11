@@ -13,6 +13,9 @@ export const ProtectedRoute = ({ children, roles }: { children: JSX.Element; rol
     );
   }
   if (!isAuthenticated) return <Navigate to="/auth/login" replace />;
-  if (roles && role && !roles.includes(role)) return <Navigate to="/dashboard" replace />;
+  // A missing or malformed role must fail closed.  Checking only when `role`
+  // is truthy would render a role-scoped page for an incomplete `/auth/me`
+  // response instead of redirecting it.
+  if (roles && (!role || !roles.includes(role))) return <Navigate to="/dashboard" replace />;
   return children;
 };

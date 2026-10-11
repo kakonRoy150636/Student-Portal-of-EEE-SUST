@@ -38,8 +38,9 @@ import io
 import secrets
 from datetime import date, datetime, timezone
 
-from sqlalchemy.exc import OperationalError, ProgrammingError
-from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
+from sqlalchemy import delete, func, select
+from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import (
     ForbiddenException,
@@ -274,7 +275,12 @@ class AlumniService:
         return AlumniProfileResponse.model_validate(profile)
 
     async def _get_decidable(self, profile_id: uuid.UUID) -> AlumniProfile:
-        profile = await self.repo.get_profile(profile_id)
+        profile = await self.db.scalar(
+            select(AlumniProfile)
+            .options(selectinload(AlumniProfile.user))
+            .where(AlumniProfile.id == profile_id)
+            .with_for_update()
+        )
         if not profile:
             raise NotFoundException("Alumni claim not found.")
         if profile.membership_status != MembershipStatus.PENDING.value:
@@ -582,45 +588,77 @@ class AlumniService:
         return await self._event_response(event)
 
     async def rsvp_event(self, user: User, event_id: uuid.UUID, dto: EventRsvpRequest) -> EventRsvpResponse:
-        event = await self.events.get_event(event_id)
+        # Serialize capacity checks and seat assignment on the event row. A
+        # count-then-insert sequence without this lock lets concurrent RSVPs
+        # all observe the same free seat count and overbook a finite event.
+        event = await self.db.scalar(
+            select(Event)
+            .where(Event.id == event_id)
+            .with_for_update()
+        )
         if not event or not event.is_published:
             raise NotFoundException("Event not found.")
         if event.members_only and user.role != UserRole.ALUMNI:
             raise ForbiddenException("This event is limited to verified alumni.")
 
-        existing = await self.events.get_rsvp(event_id, user.id)
-        if existing:
-            existing.rsvp_status = dto.rsvp_status
-            existing.note = dto.note
-            if dto.rsvp_status != "attending":
-                existing.slot_range = None
-            elif event.capacity is not None and existing.slot_range is None:
-                await self._assign_seat(event)
+        try:
+            existing = await self.db.scalar(
+                select(EventRSVP)
+                .where(EventRSVP.event_id == event_id, EventRSVP.user_id == user.id)
+                .with_for_update()
+            )
+            if existing:
+                was_attending = existing.rsvp_status == "attending"
+                existing.rsvp_status = dto.rsvp_status
+                existing.note = dto.note
+                if dto.rsvp_status != "attending":
+                    existing.slot_range = None
+                elif event.capacity is not None and not was_attending:
+                    existing.slot_range = await self._assign_seat(event)
+                await self.db.commit()
+                await self.db.refresh(existing)
+                return await self._rsvp_response(existing)
+
+            slot_range = None
+            if dto.rsvp_status == "attending" and event.capacity is not None:
+                slot_range = await self._assign_seat(event)
+
+            rsvp = EventRSVP(
+                event_id=event.id,
+                user_id=user.id,
+                rsvp_status=dto.rsvp_status,
+                note=dto.note,
+                slot_range=slot_range,
+            )
+            self.db.add(rsvp)
             await self.db.commit()
-            await self.db.refresh(existing)
-            return await self._rsvp_response(existing)
+            await self.db.refresh(rsvp)
+            return await self._rsvp_response(rsvp)
+        except IntegrityError as exc:
+            await self.db.rollback()
+            raise ResourceConflictException("This RSVP conflicts with an existing response.") from exc
 
-        if dto.rsvp_status == "attending" and event.capacity is not None:
-            await self._assign_seat(event)
-
-        rsvp = EventRSVP(
-            event_id=event.id,
-            user_id=user.id,
-            rsvp_status=dto.rsvp_status,
-            note=dto.note,
-        )
-        self.db.add(rsvp)
-        await self.db.commit()
-        await self.db.refresh(rsvp)
-        return await self._rsvp_response(rsvp)
-
-    async def _assign_seat(self, event: Event) -> None:
+    async def _assign_seat(self, event: Event):
         attending = await self.events.attending_count(event.id)
         if event.capacity is not None and attending >= event.capacity:
             raise ResourceConflictException("This event is at capacity.")
-        # SQLite has no INT4RANGE; leave slot_range null and rely on the
-        # count check above. Postgres can still apply the GiST exclusion.
-        return None
+        if event.capacity is None or self.db.get_bind().dialect.name != "postgresql":
+            # SQLite has no INT4RANGE. The event-row lock and count check still
+            # keep the dependency-free test path bounded; production assigns
+            # real disjoint PostgreSQL seat ranges below.
+            return None
+
+        occupied = set((await self.db.scalars(
+            select(func.lower(EventRSVP.slot_range)).where(
+                EventRSVP.event_id == event.id,
+                EventRSVP.rsvp_status == "attending",
+                EventRSVP.slot_range.is_not(None),
+            )
+        )).all())
+        seat = next((candidate for candidate in range(1, event.capacity + 1) if candidate not in occupied), None)
+        if seat is None:
+            raise ResourceConflictException("This event is at capacity.")
+        return func.int4range(seat, seat + 1, "[)")
 
     async def list_scholarships(self, user: User | None = None) -> list[ScholarshipResponse]:
         published_only = not (user and user.role == UserRole.SUPER_ADMIN)

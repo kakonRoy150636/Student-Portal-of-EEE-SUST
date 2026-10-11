@@ -94,13 +94,26 @@ async def _student_section(db: AsyncSession, user: User) -> dict:
         select(func.count(AttendanceRecord.id))
         .join(AttendanceSession, AttendanceSession.id == AttendanceRecord.session_id)
         .join(CourseEnrollment, CourseEnrollment.course_offering_id == AttendanceSession.course_offering_id)
-        .where(CourseEnrollment.student_id == user.id)
+        .join(CourseOffering, CourseOffering.id == AttendanceSession.course_offering_id)
+        .join(Semester, Semester.id == CourseOffering.semester_id)
+        .where(
+            CourseEnrollment.student_id == user.id,
+            CourseEnrollment.status.in_(ACTIVE_ENROLLMENT_STATUSES),
+            Semester.is_active.is_(True),
+        )
     )
     attended_stmt = (
         select(func.count(AttendanceRecord.id))
         .join(AttendanceSession, AttendanceSession.id == AttendanceRecord.session_id)
         .join(CourseEnrollment, CourseEnrollment.course_offering_id == AttendanceSession.course_offering_id)
-        .where(CourseEnrollment.student_id == user.id, AttendanceRecord.status.in_(ATTENDED_STATUSES))
+        .join(CourseOffering, CourseOffering.id == AttendanceSession.course_offering_id)
+        .join(Semester, Semester.id == CourseOffering.semester_id)
+        .where(
+            CourseEnrollment.student_id == user.id,
+            CourseEnrollment.status.in_(ACTIVE_ENROLLMENT_STATUSES),
+            Semester.is_active.is_(True),
+            AttendanceRecord.status.in_(ATTENDED_STATUSES),
+        )
     )
     total_classes = await _count(db, total_stmt)
     attended = await _count(db, attended_stmt)

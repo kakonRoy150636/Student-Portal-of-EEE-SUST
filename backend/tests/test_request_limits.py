@@ -20,6 +20,7 @@ pytestmark = pytest.mark.asyncio
     ("POST", "/auth/refresh", None, "refresh"),
     ("POST", "/ai/query", {"prompt": "Test question", "course_code": "EEE 311"}, "ai"),
     ("GET", "/resources/search", None, "resource-search"),
+    ("POST", "/resources/presigned-upload", {"file_name": "notes.pdf", "file_size": 10, "mime_type": "application/pdf"}, "resource-upload-user"),
 ])
 async def test_routes_enforce_budget(client, student, monkeypatch, method, path, body, scope):
     fake = AsyncMock()

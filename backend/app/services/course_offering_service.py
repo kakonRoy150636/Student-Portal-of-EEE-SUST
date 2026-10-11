@@ -904,7 +904,7 @@ class CourseOfferingService:
         if owner.student_id != student_id:
             raise ForbiddenException("You may only modify your own enrollments.")
         if require_eligible_offering:
-            await self._enrollment_offerings([student_id], [owner.course_offering_id])
+            await self._enrollment_offerings(student_id, [owner.course_offering_id])
         else:
             await self._offering_for_update(owner.course_offering_id)
 

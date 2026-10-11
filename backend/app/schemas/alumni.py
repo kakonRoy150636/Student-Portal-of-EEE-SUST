@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
+from app.core.security import MAX_PASSWORD_BYTES
+
 
 MembershipStatus = Literal["pending", "active", "expired", "rejected"]
 EventType = Literal["reunion", "webinar", "meetup"]
@@ -27,6 +29,13 @@ class AlumniRegisterRequest(BaseModel):
     designation: str | None = Field(None, max_length=150)
     industry: str | None = Field(None, max_length=100)
     linkedin_url: str | None = Field(None, max_length=255)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_bytes(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > MAX_PASSWORD_BYTES:
+            raise ValueError(f"Password cannot exceed {MAX_PASSWORD_BYTES} UTF-8 bytes.")
+        return value
 
     @field_validator("linkedin_url")
     @classmethod

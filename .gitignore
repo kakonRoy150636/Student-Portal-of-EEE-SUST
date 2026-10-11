@@ -19,6 +19,8 @@ coverage/
 .coverage
 .coverage.*
 htmlcov/
+backend/build/
+backend/*.egg-info/
 backend/pip-audit.json
 backend/coverage.xml
 backend/junit.xml

@@ -2,11 +2,13 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { MapPin, BriefcaseBusiness, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { safeExternalUrl } from '@/lib/externalUrl';
 import type { AlumniDirectoryItem } from '../api/alumniApi';
 
 export function AlumniCard({ alumni }: { alumni: AlumniDirectoryItem }) {
   const job = alumni.current_employment;
   const location = [job?.city ?? alumni.current_city, job?.country ?? alumni.current_country].filter(Boolean).join(', ');
+  const linkedinUrl = safeExternalUrl(alumni.linkedin_url);
   return (
     <article className="surface flex h-full flex-col justify-between gap-4 p-5">
       <div>
@@ -26,7 +28,7 @@ export function AlumniCard({ alumni }: { alumni: AlumniDirectoryItem }) {
       </div>
       <div className="flex items-center justify-between gap-2">
         <Link to={`/alumni/profile/${alumni.id}`} className="text-sm font-semibold text-[var(--accent-bright)] hover:underline">View profile</Link>
-        {alumni.linkedin_url && <a href={alumni.linkedin_url} target="_blank" rel="noopener noreferrer" aria-label={`${alumni.full_name} on LinkedIn`} className="text-[var(--text-muted)] hover:text-[var(--text)]"><ExternalLink className="h-4 w-4" /></a>}
+        {linkedinUrl && <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" aria-label={`${alumni.full_name} on LinkedIn`} className="text-[var(--text-muted)] hover:text-[var(--text)]"><ExternalLink className="h-4 w-4" /></a>}
       </div>
     </article>
   );

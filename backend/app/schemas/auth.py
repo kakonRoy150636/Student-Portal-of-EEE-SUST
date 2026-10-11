@@ -1,7 +1,15 @@
 import uuid
 from typing import Literal
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+from app.core.security import MAX_PASSWORD_BYTES
 from app.models.user import UserRole
+
+
+def _validate_password_bytes(value: str) -> str:
+    """Reject values bcrypt cannot represent before hashing them."""
+    if len(value.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise ValueError(f"Password cannot exceed {MAX_PASSWORD_BYTES} UTF-8 bytes.")
+    return value
 
 class LoginRequest(BaseModel):
     # Accepts either the institutional identifier (VARCHAR(32)) or the login
@@ -44,6 +52,8 @@ class TeacherRegisterRequest(BaseModel):
     # avatar_key is deliberately absent: the only write path is
     # /auth/avatar-upload/finalize after the object has been measured.
 
+    _password_byte_length = field_validator("password")(_validate_password_bytes)
+
 
 class StudentRegisterRequest(BaseModel):
     full_name: str = Field(min_length=1, max_length=150)
@@ -51,9 +61,11 @@ class StudentRegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
     session_year: str = Field(min_length=1, max_length=9)
-    current_term: str = Field(min_length=1, max_length=4)
+    current_term: Literal["1-1", "1-2", "2-1", "2-2", "3-1", "3-2", "4-1", "4-2"]
     role: Literal["student", "cr", "er"] = "student"
     course_selections: list[CourseSelection] = Field(default_factory=list, max_length=30)
+
+    _password_byte_length = field_validator("password")(_validate_password_bytes)
 
 
 class PendingApprovalUser(BaseModel):
@@ -85,7 +97,7 @@ class AvatarUploadResponse(BaseModel):
 
 
 class AvatarFinalizeRequest(BaseModel):
-    file_key: str
+    file_key: str = Field(min_length=1, max_length=256)
 
 
 class AvatarFinalizeResponse(BaseModel):

@@ -96,7 +96,11 @@ async def alumni_directory(
     )
 
 
-@router.get("/directory", response_model=list[AlumniProfileResponse])
+@router.get(
+    "/directory",
+    response_model=list[AlumniProfileResponse],
+    dependencies=[Depends(limit_alumni_search)],
+)
 async def search_directory(
     q: str | None = Query(default=None, min_length=1, max_length=120),
     batch_year: int | None = Query(default=None, ge=1960, le=2100),

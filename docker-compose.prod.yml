@@ -18,6 +18,7 @@ x-production-environment: &production-environment
   DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
   S3_ACCESS_KEY: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
   S3_SECRET_KEY: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
+  S3_PUBLIC_ENDPOINT_URL: ${S3_PUBLIC_ENDPOINT_URL:?S3_PUBLIC_ENDPOINT_URL is required}
 
 services:
   postgres:
@@ -176,6 +177,7 @@ services:
         VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
         VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-}
         VITE_FIREBASE_VAPID_KEY: ${VITE_FIREBASE_VAPID_KEY:-}
+        VITE_S3_PUBLIC_ENDPOINT_URL: ${VITE_S3_PUBLIC_ENDPOINT_URL:?VITE_S3_PUBLIC_ENDPOINT_URL is required}
       dockerfile: Dockerfile
     restart: always
     depends_on:

@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
 from app.models.attendance import AttendanceSession, AttendanceRecord
-from app.models.academic import CourseEnrollment
+from app.models.academic import ACTIVE_ENROLLMENT_STATUSES, CourseEnrollment, CourseOffering, Semester
 from app.models.user import User
 from app.repositories.attendance_repository import AttendanceRepository
 from sqlalchemy import select, and_
@@ -41,11 +41,17 @@ class AttendanceService:
                 AttendanceRecord.status,
             )
             .join(AttendanceSession, AttendanceSession.course_offering_id == CourseEnrollment.course_offering_id)
+            .join(CourseOffering, CourseOffering.id == CourseEnrollment.course_offering_id)
+            .join(Semester, Semester.id == CourseOffering.semester_id)
             .outerjoin(AttendanceRecord, and_(
                 AttendanceRecord.session_id == AttendanceSession.id,
                 AttendanceRecord.student_id == student_id,
             ))
-            .where(CourseEnrollment.student_id == student_id)
+            .where(
+                CourseEnrollment.student_id == student_id,
+                CourseEnrollment.status.in_(ACTIVE_ENROLLMENT_STATUSES),
+                Semester.is_active.is_(True),
+            )
         )
         rows = (await self.db.execute(stmt)).all()
 
@@ -68,6 +74,20 @@ class AttendanceService:
         }
 
     async def create_session(self, course_offering_id, session_date, topic, taken_by, records):
+        student_ids = [record.student_id for record in records]
+        if student_ids:
+            enrolled_ids = set((await self.db.scalars(
+                select(CourseEnrollment.student_id).where(
+                    CourseEnrollment.course_offering_id == course_offering_id,
+                    CourseEnrollment.student_id.in_(student_ids),
+                    CourseEnrollment.status.in_(ACTIVE_ENROLLMENT_STATUSES),
+                )
+            )).all())
+            if enrolled_ids != set(student_ids):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Attendance records may only include active students enrolled in this course.",
+                )
         session = AttendanceSession(
             course_offering_id=course_offering_id,
             session_date=session_date,
@@ -86,7 +106,10 @@ class AttendanceService:
         stmt = (
             select(CourseEnrollment.student_id, User.full_name)
             .join(User, User.id == CourseEnrollment.student_id)
-            .where(CourseEnrollment.course_offering_id == course_offering_id)
+            .where(
+                CourseEnrollment.course_offering_id == course_offering_id,
+                CourseEnrollment.status.in_(ACTIVE_ENROLLMENT_STATUSES),
+            )
         )
         students = (await self.db.execute(stmt)).all()
 
@@ -118,11 +141,29 @@ class AttendanceService:
         return session.course_offering_id
 
     async def update_records(self, session_id, records):
-        session = await self.repo.get_by_id(session_id)
+        session = await self.db.scalar(
+            select(AttendanceSession)
+            .where(AttendanceSession.id == session_id)
+            .with_for_update()
+        )
         if not session:
             raise HTTPException(status_code=404, detail="Session not found.")
         if _is_expired(session.editable_until):
             raise HTTPException(status_code=400, detail="Correction window has expired.")
+
+        student_ids = [record.student_id for record in records]
+        if student_ids:
+            existing_ids = set((await self.db.scalars(
+                select(AttendanceRecord.student_id).where(
+                    AttendanceRecord.session_id == session_id,
+                    AttendanceRecord.student_id.in_(student_ids),
+                )
+            )).all())
+            if existing_ids != set(student_ids):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Attendance records must refer to students recorded in this session.",
+                )
 
         for r in records:
             stmt = select(AttendanceRecord).where(

@@ -15,7 +15,12 @@ from app.schemas.auth import (
     AvatarUploadResponse, AvatarFinalizeRequest, AvatarFinalizeResponse,
 )
 from app.api.dependencies import get_current_user, get_avatar_actor, RequireRole, get_client_ip
-from app.api.request_limits import limit_login, limit_refresh, limit_registration
+from app.api.request_limits import (
+    limit_avatar_upload,
+    limit_login,
+    limit_refresh,
+    limit_registration,
+)
 from app.models.user import User, UserRole
 from app.core.config import settings
 from app.core.exceptions import UnauthorizedException
@@ -51,7 +56,7 @@ def _set_refresh_cookie(response: Response, value: str) -> None:
         key=REFRESH_COOKIE,
         value=value,
         httponly=True,
-        secure=settings.ENVIRONMENT == "production",
+        secure=settings.is_production,
         samesite="lax",
         path=REFRESH_COOKIE_PATH,
     )
@@ -119,7 +124,11 @@ async def register_student(
     return await AuthService(db).register_student(payload)
 
 
-@router.post("/avatar-upload", response_model=AvatarUploadResponse)
+@router.post(
+    "/avatar-upload",
+    response_model=AvatarUploadResponse,
+    dependencies=[Depends(limit_avatar_upload)],
+)
 async def avatar_upload(
     filename: str,
     user: User = Depends(get_avatar_actor),
@@ -177,7 +186,11 @@ async def avatar_upload(
     )
 
 
-@router.post("/avatar-upload/finalize", response_model=AvatarFinalizeResponse)
+@router.post(
+    "/avatar-upload/finalize",
+    response_model=AvatarFinalizeResponse,
+    dependencies=[Depends(limit_avatar_upload)],
+)
 async def finalize_avatar(
     payload: AvatarFinalizeRequest,
     user: User = Depends(get_avatar_actor),

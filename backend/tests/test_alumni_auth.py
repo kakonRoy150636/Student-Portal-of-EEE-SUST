@@ -123,6 +123,11 @@ async def test_alumni_registration_validates_claim_fields(client):
     assert response.status_code == 422
 
 
+async def test_alumni_registration_rejects_password_over_bcrypt_byte_limit(client):
+    response = await _register(client, password="x" * 73)
+    assert response.status_code == 422
+
+
 # --- unauthorized access --------------------------------------------------
 
 

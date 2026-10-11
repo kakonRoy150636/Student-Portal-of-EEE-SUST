@@ -1,6 +1,6 @@
 import uuid
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -46,3 +46,28 @@ async def test_finalize_cannot_touch_another_users_object(monkeypatch):
             SimpleNamespace(id=uuid.uuid4()),
         )
     client.head_object.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_finalize_deletes_validly_scoped_staging_object_when_metadata_is_rejected(monkeypatch):
+    client = MagicMock()
+    client.head_object.return_value = {"ContentLength": 10, "ContentType": "application/pdf"}
+    monkeypatch.setattr(module, "_s3_client", lambda: client)
+    db = MagicMock()
+    db.scalar = AsyncMock(return_value=None)
+    user = SimpleNamespace(id=uuid.uuid4())
+    key = f"resources/{user.id}/{uuid.uuid4().hex}.pdf"
+
+    with pytest.raises(ValueError, match="Unknown course code"):
+        await ResourceService(db).finalize_upload(
+            SimpleNamespace(
+                file_key=key,
+                course_code="EEE 999",
+                file_name="notes.pdf",
+                file_size_bytes=10,
+                mime_type="application/pdf",
+            ),
+            user,
+        )
+
+    client.delete_object.assert_called_once_with(Bucket=settings.S3_BUCKET_NAME, Key=key)

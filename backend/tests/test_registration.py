@@ -49,6 +49,21 @@ async def test_student_registration_is_active_immediately(client, db):
     assert login.status_code == 200
 
 
+async def test_registration_rejects_password_over_bcrypt_byte_limit(client, db):
+    response = await client.post(
+        "/api/v1/auth/register/student",
+        json={
+            "full_name": "Too Long Password",
+            "identifier": "2029999003",
+            "email": "too-long-password@sust.edu",
+            "password": "x" * 73,
+            "session_year": "22-26",
+            "current_term": "3-1",
+        },
+    )
+    assert response.status_code == 422
+
+
 async def test_teacher_registration_requires_approval(client):
     response = await client.post(
         "/api/v1/auth/register/teacher",

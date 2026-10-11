@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from '@/components/shared/Avatar';
 import { ACCEPTED_AVATAR_TYPES, MAX_AVATAR_BYTES } from '@/lib/avatar';
+import { safePresignedUploadUrl } from '@/lib/presignedUrl';
 
 type Role = 'teacher' | 'student' | 'cr' | 'er';
 
@@ -84,12 +85,20 @@ export default function RegisterPage() {
       return;
     }
 
+    const uploadUrl = safePresignedUploadUrl(data.upload_url);
+    if (!uploadUrl) {
+      throw new Error('Your photo could not be uploaded. Your account was created; you can add a photo later.');
+    }
+
     // The Content-Type is pinned server-side and must be sent verbatim or
     // storage rejects the PUT. The browser's file.type is deliberately ignored.
-    const uploadResponse = await fetch(data.upload_url, {
+    // Do not follow a redirect from a presigned URL: it could send the chosen
+    // photo to an origin that was not covered by the server's signature.
+    const uploadResponse = await fetch(uploadUrl, {
       method: 'PUT',
       headers: { 'Content-Type': data.content_type },
       body: avatar,
+      redirect: 'error',
     });
     if (!uploadResponse.ok) {
       throw new Error('Your photo could not be uploaded. Your account was created; you can add a photo later.');

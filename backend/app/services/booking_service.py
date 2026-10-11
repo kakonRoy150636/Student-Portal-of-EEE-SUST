@@ -75,7 +75,13 @@ class BookingService:
         reason: str | None = None,
     ) -> RoomReservation:
         """Teacher/admin approval or rejection of a pending reservation."""
-        reservation = await self.get_reservation(reservation_id)
+        reservation = await self.db.scalar(
+            select(RoomReservation)
+            .where(RoomReservation.id == reservation_id)
+            .with_for_update()
+        )
+        if not reservation:
+            raise NotFoundException("Reservation not found.")
         if reservation.status != "pending":
             raise ResourceConflictException("Only pending reservations can be decided.")
 
@@ -99,7 +105,13 @@ class BookingService:
         actor_id: uuid.UUID,
         reason: str,
     ) -> RoomReservation:
-        reservation = await self.get_reservation(reservation_id)
+        reservation = await self.db.scalar(
+            select(RoomReservation)
+            .where(RoomReservation.id == reservation_id)
+            .with_for_update()
+        )
+        if not reservation:
+            raise NotFoundException("Reservation not found.")
         if reservation.status in ("cancelled", "rejected"):
             raise ResourceConflictException("This reservation can no longer be cancelled.")
 

@@ -172,6 +172,7 @@ services:
         VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
         VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-}
         VITE_FIREBASE_VAPID_KEY: ${VITE_FIREBASE_VAPID_KEY:-}
+        VITE_S3_PUBLIC_ENDPOINT_URL: ${VITE_S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
       dockerfile: Dockerfile
     container_name: sust_eee_frontend
     restart: always

@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { PageSkeleton } from '@/components/shared/PageSkeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { safeExternalUrl } from '@/lib/externalUrl';
 import {
   Table,
   TableBody,
@@ -151,9 +152,9 @@ export default function AlumniDirectoryPage() {
                   <TableCell>{profile.current_company || '—'}</TableCell>
                   <TableCell>{profile.industry || '—'}</TableCell>
                   <TableCell>
-                    {profile.linkedin_url ? (
+                    {safeExternalUrl(profile.linkedin_url) ? (
                       <a
-                        href={profile.linkedin_url}
+                        href={safeExternalUrl(profile.linkedin_url) ?? undefined}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent-bright)] hover:underline"

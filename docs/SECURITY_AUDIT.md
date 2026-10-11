@@ -1,9 +1,26 @@
-# Security audit — 2026-10-03
+# Security audit — 2026-10-11
 
-Scope: source/configuration review at `aa6387e`, followed by targeted fixes.
+Scope: follow-up source, configuration, dependency, container and regression review
+at the committed baseline `34410d7` plus the current uncommitted audit changes.
+The original 2026-10-03 findings and verification record remain below for history.
 This does not attest to deployed secrets, credential rotation or Git history cleanup.
 
-## Findings before fixes
+## Current follow-up changes (2026-10-11)
+
+This follow-up closes the confirmed issues found while reviewing request abuse,
+input boundaries, object storage, attendance/event state, and browser session
+lifecycle. These changes are currently in the working tree and have not been
+committed or pushed.
+
+| Area | Change |
+|---|---|
+| Request budgets | Added authenticated budgets for alumni directory search, resource presign/finalize, and avatar upload/finalize, in addition to the existing login, refresh, registration, AI and resource-search limits. |
+| Input and object boundaries | Enforced bcrypt's 72-byte password limit, finite attendance statuses and duplicate-free records, active-enrollment checks, bounded attendance text/record counts, and bounded avatar finalization keys. Rejected staging objects are deleted after failed resource finalization. |
+| Concurrent state | Serialized finite alumni-event RSVP capacity checks and assigned disjoint PostgreSQL seat ranges. Room reservation decisions/cancellations and attendance updates now lock the row they mutate. Dropped/inactive enrollments no longer contribute to attendance summaries or dashboard totals. |
+| Production/browser hardening | Normalized the production switch, require an HTTPS public storage endpoint in production, fail closed on incomplete role data, validate external profile links and presigned upload origins, reject presigned redirects, and prevent stale auth/offline-storage operations from publishing another user's state. |
+| Dependencies and quality | Upgraded transitive `source-map-js` to `1.2.2`; corrected the enrollment-reselection type/runtime call caught by mypy. |
+
+## Original findings before fixes (2026-10-03)
 
 | ID | Severity | Finding |
 |---|---|---|
@@ -14,11 +31,13 @@ This does not attest to deployed secrets, credential rotation or Git history cle
 | S5 | High | Resource finalize trusts Content-Type metadata; avatar does not require key extension/type agreement. A still-live PUT URL can overwrite a finalized object. Validate bytes and publish an immutable, separately named object. |
 | S6 | Medium | Lab equipment API accepts every authenticated role although the frontend restricts it to staff. Several other routes intentionally use ownership/authentication rather than role gates; matrix below flags each. |
 
-Current `database/dev/seed.sql` contains reference rows, no users or password hashes.
+Current `database/dev/seed.sql` intentionally contains disposable development users
+and password hashes. `database/dev/seed.sh` refuses to run unless
+`ENVIRONMENT=development`; these accounts are not production credentials.
 Bootstrap credentials are unset by default; `admin` is an identifier, not a password.
-Test passwords are test-only. Historical seeds and tracked `.backups/` data are not
-used by startup; deployments created from old revisions need operator credential
-rotation. Removing a current seed does not rotate a live password or erase history.
+Historical seeds and tracked `.backups/` data are not used by startup; deployments
+created from old revisions need operator credential rotation. Removing a current
+seed does not rotate a live password or erase history.
 
 ## Endpoint / role matrix (before fixes)
 
@@ -105,7 +124,7 @@ disabled in production; disable all documentation routes there consistently.
 There is initially **no GitHub webhook route**, only an unused verification helper.
 New receiver: `POST /api/v1/webhooks/github`, HMAC-authenticated (no user role).
 
-## Verification / residual limits
+## Original verification / residual limits (2026-10-03)
 
 ### Fixes applied (separate commits)
 
@@ -171,3 +190,41 @@ docker compose -p sust-eee-migration-check -f docker-compose.yml -f docker-compo
 - Redis fail-closed behavior is production-only; local development retains
   availability when Redis is absent. Exact trusted proxy configuration is
   required for distinct client IP budgets behind a reverse proxy.
+
+## Current follow-up verification (2026-10-11)
+
+- Isolated backend PostgreSQL/Redis suite after the follow-up changes: **313
+  passed, 1 skipped, 4 xfailed** in 130.29 seconds. The one skip is the
+  explicitly opt-in MinIO test; the four expected xfails remain `LAB-1`,
+  `ENR-1`, `ENR-2`, and `ENR-3` as described above.
+- The optional isolated MinIO upload-security file passed separately: **12
+  passed**.
+- CI-aligned backend quality checks passed: Ruff, mypy (**99 source files**),
+  and pip-audit (**no known vulnerabilities** after upgrading the disposable
+  checker environment's pip/setuptools as CI does).
+- Frontend checks passed: TypeScript typecheck, ESLint, **50 Vitest tests**,
+  and production build. The default Playwright suite passed **5 tests** and
+  intentionally skipped the opt-in live semester test.
+- The real browser semester workflow against a fresh PostgreSQL/Redis/MinIO
+  stack passed **1 test**. It covered UI login, offering creation/publication,
+  assignment approval, notifications, enrollment, drop/reselect credits, and
+  wrong-role/unauthenticated access checks.
+- `npm audit --audit-level=high` reports **0 vulnerabilities**; the transitive
+  `source-map-js` package is locked at **1.2.2**. Trivy HIGH/CRITICAL scans of
+  freshly built backend and frontend images both reported **0 findings**.
+
+## Current follow-up residual limits
+
+- The audit is repository- and disposable-environment evidence only. It does
+  not prove that a deployed environment uses rotated secrets, TLS, trusted
+  proxy addresses, private object storage, least-privilege S3 credentials, or
+  the current image/lockfile.
+- Production Compose still expects an external TLS terminator; the frontend
+  container itself serves HTTP. Staging uploads can consume object-store space
+  until an object-store lifecycle/quotas policy removes abandoned keys.
+- The lab-bench overlap contract, 15/24-credit registration boundaries, and
+  prerequisite policy remain intentionally unimplemented and are represented by
+  the four expected xfails. Course-private resource authorization is also not
+  implemented; the resource library remains department-shared by design.
+- The current audit changes, including this report and the dependency lockfile
+  update, are uncommitted. GitHub-hosted CI was not run from this workspace.

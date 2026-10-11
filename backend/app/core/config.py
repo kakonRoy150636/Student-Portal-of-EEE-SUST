@@ -1,4 +1,5 @@
 from typing import List
+from urllib.parse import urlparse
 from pydantic_settings import BaseSettings
 from pydantic import Field
 
@@ -68,6 +69,11 @@ class Settings(BaseSettings):
         env_file = ".env"
         extra = "ignore"
 
+    @property
+    def is_production(self) -> bool:
+        """Use one normalized production switch everywhere in the app."""
+        return self.ENVIRONMENT.strip().lower() == "production"
+
 settings = Settings()
 
 # --- production safety net -------------------------------------------------
@@ -83,7 +89,7 @@ _WEAK_SECRET_KEYS = {
     "supersecret",
 }
 
-if settings.ENVIRONMENT.lower() == "production":
+if settings.is_production:
     from sqlalchemy.engine import make_url
 
     required = {"SECRET_KEY", "DATABASE_URL", "S3_ACCESS_KEY", "S3_SECRET_KEY"}
@@ -94,6 +100,9 @@ if settings.ENVIRONMENT.lower() == "production":
         raise RuntimeError("Production DATABASE_URL requires a non-default password.")
     if not settings.S3_ACCESS_KEY or not settings.S3_SECRET_KEY or settings.S3_SECRET_KEY.lower() in {"minioadmin", "password", "changeme"}:
         raise RuntimeError("Production requires non-default S3 credentials.")
+    public_storage = urlparse(settings.S3_PUBLIC_ENDPOINT_URL.strip())
+    if public_storage.scheme != "https" or not public_storage.netloc:
+        raise RuntimeError("Production S3_PUBLIC_ENDPOINT_URL must be an HTTPS URL.")
     if settings.SECRET_KEY in _WEAK_SECRET_KEYS or len(settings.SECRET_KEY) < 32:
         raise RuntimeError(
             "SECRET_KEY must be set to a unique value of at least 32 characters "
