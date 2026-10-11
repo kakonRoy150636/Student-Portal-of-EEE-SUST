@@ -2,8 +2,8 @@
 
 **Notification follow-up:** the former NOT-1 scanner stub is now implemented
 and its xfail has been replaced with passing behavioral tests. See
-[Notifications](NOTIFICATIONS.md). Counts/coverage below describe the original
-test-suite baseline, not the later expanded notification suite.
+[Notifications](NOTIFICATIONS.md). Counts/coverage below are the historical
+2026-10-03 test-suite baseline, not the later expanded notification suite.
 
 Verified 2026-10-03 against real PostgreSQL 16 (pgvector image) and Redis 7.
 
@@ -38,7 +38,7 @@ runner. Infrastructure failures fail the Docker run; they are not silently skipp
 | Auth service | 101/130 | 73% |
 | Auth/RBAC dependencies | 46/76 | 57% |
 | Redis request budgets | 15/20 | 71% |
-| Notification task | 6/6 | 100% — **log-only stub, not feature coverage** |
+| Notification task | 6/6 | 100% — **historical log-only stub, not current feature coverage** |
 | Total selected modules | 304/382 | **75.2%** |
 
 Statement coverage is **79.6%**; branch coverage is **60.0%**. No 100% target is
@@ -68,11 +68,12 @@ under `coverage/backend/` and ignored by Git; this summary is retained in source
 - **Auth:** real login, hashed refresh storage, rotation, sequential replay,
   concurrent replay, unaffected independent device family, expiry and logout.
   Actual Redis counter blocks login before authentication work after 30 attempts.
-- **Notifications:** two real concurrent inserts produce one stored alert under
-  the unique constraint. Scanner test requires a positive first notification
-  before checking deduplication, so a log-only task cannot vacuously pass.
+- **Notifications (2026-10-03 baseline):** two real concurrent inserts produce
+  one stored alert under the unique constraint. The scanner test required a
+  positive first notification before checking deduplication, so a log-only task
+  could not vacuously pass.
 
-## Known gaps exposed by the suite
+## Historical baseline gaps (2026-10-03)
 
 | ID | Expected failure / blocked behavior | Needed implementation |
 |---|---|---|
@@ -82,16 +83,31 @@ under `coverage/backend/` and ignored by Git; this summary is retained in source
 | ENR-3 | Prerequisite behavior cannot be arranged/tested | Prerequisite relationship, completion/result data and policy; no fake validator or invented schema was substituted |
 | NOT-1 | Scanner produces zero alerts | Real due-class scan and transactional idempotency before FCM dispatch |
 
-LAB-1, ENR-1, ENR-2 and NOT-1 are `xfail(strict=True)` with narrowly specified
-assertion failure types. Unexpected database/programming errors still fail the
-run. Remove each xfail after implementation. ENR-3 explicitly calls `pytest.xfail`
-as a blocked-case marker; replace it with unmet/met-prerequisite behavior tests
-when the domain model exists. It is not a tested prerequisite check.
+In the 2026-10-03 baseline, LAB-1, ENR-1, ENR-2 and NOT-1 were
+`xfail(strict=True)` with narrowly specified assertion failure types. Unexpected
+database/programming errors still failed the run. The later notification
+follow-up implemented the scanner and replaced NOT-1 with passing behavioral
+tests; the current expected xfails are LAB-1 and ENR-3. ENR-1 and ENR-2 were
+implemented by the Phase 1 credit-boundary follow-up. ENR-3
+explicitly calls `pytest.xfail` as a blocked-case marker; replace it with
+unmet/met-prerequisite behavior tests when the domain model exists. It is not a
+tested prerequisite check.
 
-The notification uniqueness key currently references the recurring schedule,
-not a dated occurrence. A real scanner needs an occurrence/date policy to avoid
-suppressing the same class forever across subsequent weeks. External FCM is a
-mocked boundary in the scanner contract; no live push delivery is claimed.
+## Current follow-up verification (2026-10-11)
+
+- The isolated backend suite reports **316 passed, 1 skipped, 2 xfailed**. The
+  remaining expected failures are the lab-bench contract (`LAB-1`) and the
+  prerequisite-model blocker (`ENR-3`).
+- Registration now rejects non-empty selections below 15 active credits or above
+  24 active credits. Normal enrollment and reselection reject loads above 24;
+  per-student row locking serializes concurrent credit-load mutations.
+- The Phase 1 frontend auth lifecycle suite covers slow login/logout races,
+  stale bootstrap invalidation, queued login supersession, and cleanup ordering.
+
+In the 2026-10-03 baseline, the notification uniqueness key referenced the
+recurring schedule rather than a dated occurrence. The current scanner derives
+event identity from schedule ID plus local occurrence date; external FCM remains
+a mocked boundary, so no live push delivery is claimed.
 
 ## Bugs fixed while establishing the tests
 

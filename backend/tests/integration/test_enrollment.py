@@ -6,10 +6,10 @@ pytestmark = pytest.mark.asyncio
 
 
 @pytest.mark.parametrize('credits,expected', [
-    pytest.param([3,3,3,3,1.5], 422, marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason='ENR-1: minimum 15 credits not implemented')),
+    ([3,3,3,3,1.5], 422),
     ([3]*5, 201),
     ([3]*8, 201),
-    pytest.param([3]*8+[1.5], 422, marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason='ENR-2: maximum 24 credits not implemented')),
+    ([3]*8+[1.5], 422),
 ], ids=['13.5-below-minimum', '15-inclusive', '24-inclusive', '25.5-above-maximum'])
 async def test_registration_credit_boundaries(api, database, credits, expected):
     semester = await database.semester()
@@ -38,7 +38,9 @@ async def test_registration_roles_and_legacy_selection_types_remain_compatible(
     api, database, role, stored_role, with_selections,
 ):
     semester = await database.semester()
-    offerings = [await database.offering(3, semester=semester, published=True) for _ in range(3)] if with_selections else []
+    # Keep the legacy drop/improvement vocabulary while submitting a valid
+    # 15-credit active load under the registration boundary.
+    offerings = [await database.offering(3, semester=semester, published=True) for _ in range(6)] if with_selections else []
     payload = database.registration(offerings)
     payload["role"] = role
     if with_selections:
@@ -54,7 +56,8 @@ async def test_registration_roles_and_legacy_selection_types_remain_compatible(
     assert await database.conn.fetchval("SELECT count(*) FROM profiles_student WHERE user_id=$1", user["id"]) == 1
     rows = await database.conn.fetch("SELECT course_offering_id,status FROM course_enrollments WHERE student_id=$1", user["id"])
     assert {row["course_offering_id"]: row["status"] for row in rows} == (
-        dict(zip(offerings, ["main", "drop", "improvement"])) if with_selections else {}
+        dict(zip(offerings, ["main", "drop", "improvement", "main", "main", "main"]))
+        if with_selections else {}
     )
 
 

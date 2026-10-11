@@ -23,7 +23,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   // Auth operations can overlap: bootstrap/refresh, an explicit login, and
   // logout can all be waiting on network or IndexedDB work.  Only the latest
-  // operation may publish a user into context.
+  // operation may publish a user into context. Reserve its generation when
+  // the action is requested, before waiting for earlier queued cleanup.
   const authOperation = useRef(0);
   const queuedAction = useRef<Promise<void>>(Promise.resolve());
 
@@ -92,37 +93,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => window.removeEventListener('auth:session-expired', onExpired);
   }, [queryClient]);
 
-  const login = (creds: LoginCredentials) => enqueueAuthAction(async () => {
+  const login = (creds: LoginCredentials) => {
     const operation = ++authOperation.current;
-    const { data } = await api.post('/auth/login', creds);
-    if (authOperation.current !== operation) return;
-    const token = data.tokens.access_token;
-    setAccessToken(token);
-    queryClient.clear();
-    await selectRoutineOwner(data.user.id).catch(() => {});
-    if (authOperation.current === operation) setUser(data.user);
-  });
+    return enqueueAuthAction(async () => {
+      if (authOperation.current !== operation) return;
+      const { data } = await api.post('/auth/login', creds);
+      if (authOperation.current !== operation) return;
+      const token = data.tokens.access_token;
+      setAccessToken(token);
+      queryClient.clear();
+      await selectRoutineOwner(data.user.id).catch(() => {});
+      if (authOperation.current === operation) setUser(data.user);
+    });
+  };
 
-  const logout = () => enqueueAuthAction(async () => {
+  const logout = () => {
     const operation = ++authOperation.current;
-    // Clear the in-memory session before waiting on device/API cleanup.  This
-    // makes the route guard fail closed during a slow logout and invalidates
-    // any refresh that was already in flight.
+    // Clear the in-memory session before waiting on the queue or device/API
+    // cleanup. This makes the route guard fail closed during a slow logout
+    // and invalidates any refresh that was already in flight.
     setAccessToken(null);
     setUser(null);
     queryClient.clear();
-    try {
-      await disablePushDevice().catch(() => {});
-      await api.post('/auth/logout');
-    } finally {
-      if (authOperation.current === operation) {
-        setAccessToken(null);
-        setUser(null);
-        queryClient.clear();
+    return enqueueAuthAction(async () => {
+      try {
+        await disablePushDevice().catch(() => {});
+        await api.post('/auth/logout');
+      } finally {
+        if (authOperation.current === operation) {
+          setAccessToken(null);
+          setUser(null);
+          queryClient.clear();
+        }
+        // Even when a newer login is queued, finish deleting the old routine
+        // before that login can select its owner and publish a user.
         await clearRoutine().catch(() => {});
       }
-    }
-  });
+    });
+  };
 
   return (
     <AuthContext.Provider value={{ user, role: user?.role ?? null, isAuthenticated: !!user, login, logout, loading }}>

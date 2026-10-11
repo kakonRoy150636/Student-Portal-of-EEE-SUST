@@ -416,9 +416,9 @@ focused on the critical modules, not an artificial 100% project target.
 
 See [Backend test report](docs/BACKEND_TEST_REPORT.md) for measured coverage,
 discovered fixes and explicit feature gaps. Known missing features are not
-reported as passing tests. Four strict expected-failure contracts become CI
-failures on unexpected pass; a separate prerequisite case records that no
-prerequisite/completion model exists to test yet.
+reported as passing tests. Two strict expected-failure contracts remain and
+become CI failures on unexpected pass; a separate prerequisite case records
+that no prerequisite/completion model exists to test yet.
 
 For a focused rerun (start disposable services first):
 

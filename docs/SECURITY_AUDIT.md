@@ -1,7 +1,8 @@
 # Security audit — 2026-10-11
 
 Scope: follow-up source, configuration, dependency, container and regression review
-at the committed baseline `34410d7` plus the current uncommitted audit changes.
+from the committed baseline `34410d7` through the pushed audit hardening and
+Phase 1 follow-up changes.
 The original 2026-10-03 findings and verification record remain below for history.
 This does not attest to deployed secrets, credential rotation or Git history cleanup.
 
@@ -9,8 +10,8 @@ This does not attest to deployed secrets, credential rotation or Git history cle
 
 This follow-up closes the confirmed issues found while reviewing request abuse,
 input boundaries, object storage, attendance/event state, and browser session
-lifecycle. These changes are currently in the working tree and have not been
-committed or pushed.
+lifecycle. These changes are committed and pushed as `0dcb65d` (`fix: harden
+portal security boundaries`).
 
 | Area | Change |
 |---|---|
@@ -19,6 +20,7 @@ committed or pushed.
 | Concurrent state | Serialized finite alumni-event RSVP capacity checks and assigned disjoint PostgreSQL seat ranges. Room reservation decisions/cancellations and attendance updates now lock the row they mutate. Dropped/inactive enrollments no longer contribute to attendance summaries or dashboard totals. |
 | Production/browser hardening | Normalized the production switch, require an HTTPS public storage endpoint in production, fail closed on incomplete role data, validate external profile links and presigned upload origins, reject presigned redirects, and prevent stale auth/offline-storage operations from publishing another user's state. |
 | Dependencies and quality | Upgraded transitive `source-map-js` to `1.2.2`; corrected the enrollment-reselection type/runtime call caught by mypy. |
+| Phase 1 follow-up | Invalidated stale login/logout/bootstrap operations, enforced 15–24 active-credit boundaries with per-student mutation locking, and updated the regression/documentation records. |
 
 ## Original findings before fixes (2026-10-03)
 
@@ -193,16 +195,16 @@ docker compose -p sust-eee-migration-check -f docker-compose.yml -f docker-compo
 
 ## Current follow-up verification (2026-10-11)
 
-- Isolated backend PostgreSQL/Redis suite after the follow-up changes: **313
-  passed, 1 skipped, 4 xfailed** in 130.29 seconds. The one skip is the
-  explicitly opt-in MinIO test; the four expected xfails remain `LAB-1`,
-  `ENR-1`, `ENR-2`, and `ENR-3` as described above.
+- Isolated backend PostgreSQL/Redis suite after the Phase 1 follow-up: **316
+  passed, 1 skipped, 2 xfailed** in 211.45 seconds. The one skip is the
+  explicitly opt-in MinIO test; the remaining expected xfails are `LAB-1` and
+  `ENR-3`.
 - The optional isolated MinIO upload-security file passed separately: **12
   passed**.
 - CI-aligned backend quality checks passed: Ruff, mypy (**99 source files**),
   and pip-audit (**no known vulnerabilities** after upgrading the disposable
   checker environment's pip/setuptools as CI does).
-- Frontend checks passed: TypeScript typecheck, ESLint, **50 Vitest tests**,
+- Frontend checks passed: TypeScript typecheck, ESLint, **56 Vitest tests**,
   and production build. The default Playwright suite passed **5 tests** and
   intentionally skipped the opt-in live semester test.
 - The real browser semester workflow against a fresh PostgreSQL/Redis/MinIO
@@ -222,9 +224,11 @@ docker compose -p sust-eee-migration-check -f docker-compose.yml -f docker-compo
 - Production Compose still expects an external TLS terminator; the frontend
   container itself serves HTTP. Staging uploads can consume object-store space
   until an object-store lifecycle/quotas policy removes abandoned keys.
-- The lab-bench overlap contract, 15/24-credit registration boundaries, and
-  prerequisite policy remain intentionally unimplemented and are represented by
-  the four expected xfails. Course-private resource authorization is also not
-  implemented; the resource library remains department-shared by design.
-- The current audit changes, including this report and the dependency lockfile
-  update, are uncommitted. GitHub-hosted CI was not run from this workspace.
+- The lab-bench overlap contract and prerequisite policy remain intentionally
+  unimplemented and are represented by the two expected xfails. The 15–24
+  active-credit boundary is now enforced for registration and active course
+  mutations. Course-private resource authorization is not implemented; the
+  resource library remains department-shared by design.
+- The implementation, dependency lockfile, and Phase 1 follow-up updates
+  described here are committed and pushed on `main`. GitHub-hosted CI was not
+  run from this workspace.

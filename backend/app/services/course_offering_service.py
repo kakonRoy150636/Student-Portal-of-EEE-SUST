@@ -42,6 +42,8 @@ COURSE_NOTIFICATION_NAMESPACE = uuid.UUID("0d7d0f0d-6b5d-46ea-a80d-0e4eeccf7e54"
 COURSE_ASSIGNMENT_NOTIFICATION = "course_assignment"
 COURSE_ENROLLMENT_NOTIFICATION = "course_enrollment"
 COURSE_AVAILABLE_NOTIFICATION = "course_available"
+MIN_ACTIVE_CREDITS = Decimal("15")
+MAX_ACTIVE_CREDITS = Decimal("24")
 
 
 def assignment_approval_event_id(request_id: uuid.UUID) -> uuid.UUID:
@@ -761,6 +763,25 @@ class CourseOfferingService:
         )
         return Decimal(str(total or 0))
 
+    async def _lock_student(self, student_id: uuid.UUID) -> None:
+        """Serialize credit-load mutations for one student."""
+        await self.db.execute(
+            select(User.id).where(User.id == student_id).with_for_update()
+        )
+
+    @staticmethod
+    def _validate_credit_load(total: Decimal, *, registration: bool) -> None:
+        if total > MAX_ACTIVE_CREDITS:
+            raise DomainException(
+                f"Active course load cannot exceed {MAX_ACTIVE_CREDITS} credits.",
+                status_code=422 if registration else 409,
+            )
+        if registration and total < MIN_ACTIVE_CREDITS:
+            raise DomainException(
+                f"Course registration requires at least {MIN_ACTIVE_CREDITS} active credits.",
+                status_code=422,
+            )
+
     async def _enrollment_offerings(
         self,
         student_id: uuid.UUID,
@@ -830,6 +851,7 @@ class CourseOfferingService:
             return []
 
         async def operation():
+            await self._lock_student(student_id)
             offerings = await self._enrollment_offerings(
                 student_id,
                 offering_ids,
@@ -848,6 +870,19 @@ class CourseOfferingService:
                 )
             ).scalars().all()
             existing = {row.course_offering_id: row for row in existing_rows}
+            active_total = await self.active_credit_total(student_id)
+            active_delta = Decimal("0")
+            for offering_id, status in selection_list:
+                current = existing.get(offering_id)
+                was_active = bool(current and current.status in ACTIVE_ENROLLMENT_STATUSES)
+                will_be_active = status in ACTIVE_ENROLLMENT_STATUSES
+                if was_active != will_be_active:
+                    credits = Decimal(str(offerings[offering_id].course.credit_hours))
+                    active_delta += credits if will_be_active else -credits
+            self._validate_credit_load(
+                active_total + active_delta,
+                registration=registration and bool(selection_list),
+            )
             result = []
             for offering_id, status in selection_list:
                 row = existing.get(offering_id)
@@ -941,11 +976,15 @@ class CourseOfferingService:
         enrollment_type: str = EnrollmentStatus.ENROLLED.value,
     ) -> CourseEnrollment:
         async def operation():
+            await self._lock_student(student_id)
             enrollment = await self._owned_enrollment_for_update(
                 enrollment_id, student_id, require_eligible_offering=True,
             )
             if enrollment.status != EnrollmentStatus.DROP.value:
                 raise ResourceConflictException("Only dropped enrollments can be reselected.")
+            current_total = await self.active_credit_total(student_id)
+            credits = Decimal(str(enrollment.offering.course.credit_hours))
+            self._validate_credit_load(current_total + credits, registration=False)
             enrollment.reselect(enrollment_type)
             await self.db.flush()
             await self._notify_enrollment(enrollment)

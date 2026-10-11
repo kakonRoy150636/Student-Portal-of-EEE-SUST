@@ -249,6 +249,33 @@ async def test_students_see_only_published_active_offerings_and_enroll(client, d
     assert await db.scalar(select(func.count()).select_from(CourseEnrollment)) == 1
 
 
+async def test_active_course_load_cannot_exceed_24_credits(client, db):
+    student = await make_user(db, role=UserRole.STUDENT)
+    offerings = [
+        (await make_offering(db, published=True, credits=3.0))[0]
+        for _ in range(9)
+    ]
+
+    for offering in offerings[:8]:
+        response = await client.post(
+            f"/api/v1/course-offerings/{offering.id}/enroll",
+            headers=auth_header(student),
+        )
+        assert response.status_code == 201, response.text
+
+    rejected = await client.post(
+        f"/api/v1/course-offerings/{offerings[8].id}/enroll",
+        headers=auth_header(student),
+    )
+    assert rejected.status_code == 409, rejected.text
+    assert "24" in rejected.json()["error"]
+    credits = await client.get(
+        "/api/v1/course-offerings/enrollments/me/credits",
+        headers=auth_header(student),
+    )
+    assert credits.json() == {"active_credit_total": 24.0}
+
+
 async def test_drop_reselect_ownership_and_active_credits(client, db):
     student = await make_user(db, role=UserRole.STUDENT)
     other = await make_user(db, role=UserRole.STUDENT)

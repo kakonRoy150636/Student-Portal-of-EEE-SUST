@@ -84,7 +84,7 @@ export default function CourseSelectionPage() {
             <p className="font-mono text-3xl font-semibold tabular-nums" aria-label={`Total active credits: ${snapshot.activeCreditTotal}`}>
               {snapshot.activeCreditTotal}
             </p>
-            <p className="mt-2 text-sm text-[var(--text-muted)]">Reported by the server for active enrollments; dropped courses are excluded.</p>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">Reported by the server for active enrollments; dropped courses are excluded. Registration selections must stay within 15–24 credits.</p>
           </CardContent>
         </Card>
       </div>

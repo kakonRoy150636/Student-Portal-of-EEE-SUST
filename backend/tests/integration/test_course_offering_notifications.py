@@ -414,7 +414,7 @@ async def test_registration_notification_failure_rolls_back_account_profile_and_
     from app.services.auth_service import AuthService
 
     semester = await database.semester()
-    offerings = [await database.offering(semester=semester, published=True) for _ in range(2)]
+    offerings = [await database.offering(semester=semester, published=True) for _ in range(5)]
     request = StudentRegisterRequest.model_validate(database.registration(offerings))
     enqueue = NotificationService.enqueue
 

@@ -68,7 +68,9 @@ Live mode incurs budgeted query-embedding costs, never generates answers and nev
 
 ## Recorded checks (2026-10-04)
 
-- Full backend: **228 passed, 1 skipped, 4 expected failures**. Skip requires MinIO; existing expected failures concern lab benches/prerequisites/credit limits.
+- Historical snapshot: full backend **228 passed, 1 skipped, 4 expected
+  failures**. Skip required MinIO; later follow-ups resolved the credit-limit
+  failures, while lab-bench and prerequisite gaps remain.
 - New AI checks: real pgvector/FTS retrieval, source ownership/course scope, injection exclusion, citations, low-confidence abstention, ingestion provenance, Redis concurrent quotas/caps, Dhaka rollover, fail-closed store errors and provider accounting/transport.
 - Frontend: **19 unit tests and 4 browser checks**; browser APIs are explicitly mocked. Lint, typecheck and production build pass.
 - 25-case synthetic evaluation (stable fixture IDs): lexical **20/20 hit@5**, MRR **0.975**; hybrid **20/20 hit@5**, MRR **1.000**; both abstain on **5/5** unsupported questions. Saved reports: `AI_EVAL_LEXICAL.json` and `AI_EVAL_HYBRID.json`.

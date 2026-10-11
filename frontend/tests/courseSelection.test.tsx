@@ -118,6 +118,7 @@ describe('CourseSelectionPage', () => {
     expect(screen.getAllByText('Fall 2026').length).toBeGreaterThan(0);
     expect(screen.getByText('Dr. Ada Rahman')).toBeTruthy();
     expect(screen.getByLabelText('Total active credits: 0')).toBeTruthy();
+    expect(screen.getByText(/Registration selections must stay within 15–24 credits/)).toBeTruthy();
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Select EEE 201' }));
     await waitFor(() => expect(screen.getByText('Enrolled')).toBeTruthy());

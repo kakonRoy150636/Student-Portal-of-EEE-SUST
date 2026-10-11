@@ -37,7 +37,9 @@ run after a failure; earlier failed steps continue to fail the job.
 | Backend Trivy 0.70.0 | Passed; 0 HIGH/CRITICAL findings with Alpine runtime and no build tools |
 
 The one skipped test requires MinIO, outside the requested PostgreSQL/Redis CI
-services. The five expected/blocked cases are documented in BACKEND_TEST_REPORT.md.
+services. That historical run had five expected/blocked cases; the current
+follow-up verification has two remaining expected failures, documented in
+BACKEND_TEST_REPORT.md.
 The legacy PostgreSQL tests now run rather than silently skipping: fixtures
 install btree_gist and use connection startup search_path settings that survive
 rollback after a forbidden request.

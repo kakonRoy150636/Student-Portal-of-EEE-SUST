@@ -200,10 +200,11 @@ tests additionally live in `backend/tests/test_notification_transport.py`.
 Live FCM acceptance/device display requires real credentials and a registered
 device; no live-push verification is claimed by mocked transport tests.
 
-Latest verification: **199 passed, 1 skipped, 4 existing unrelated xfails** in
-the full backend suite. The skip is the optional MinIO upload integration test;
-the remaining xfails concern lab-bench/prerequisite/credit-limit work. Ruff,
-mypy (95 application files), frontend ESLint/typecheck and production build passed.
+Latest verification (2026-10-11): **316 passed, 1 skipped, 2 expected xfails**
+in the isolated PostgreSQL/Redis backend suite after the security and Phase 1
+follow-ups. The skip is the optional MinIO upload integration test; the
+remaining xfails are LAB-1 and ENR-3. Ruff, mypy (**99 source files**),
+pip-audit, frontend ESLint/typecheck and production build passed.
 
 The tested backend command (with disposable database/Redis URLs exported) was:
 
