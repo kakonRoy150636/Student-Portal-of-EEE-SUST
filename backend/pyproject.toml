@@ -34,7 +34,7 @@ include = ["app*"]
 
 [project.optional-dependencies]
 ci = [
-    "ruff>=0.16,<0.17",
+    "ruff>=0.16,<0.18",
     "mypy>=2.4,<3",
     "pip-audit>=2.10,<3",
 ]
