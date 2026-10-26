@@ -1,7 +1,7 @@
 # Two-stage build. The builder carries a compiler so wheels without prebuilt
 # variants can be compiled; the runtime stage copies only the installed
 # packages, so build-essential never ships to production.
-FROM python:3.11-alpine AS builder
+FROM python:3.14-alpine AS builder
 WORKDIR /app
 
 RUN apk add --no-cache build-base postgresql-dev
@@ -12,7 +12,7 @@ COPY pyproject.toml .
 COPY app ./app
 RUN pip install --no-cache-dir --prefix=/install "."
 
-FROM python:3.11-alpine
+FROM python:3.14-alpine
 WORKDIR /app
 
 # libpq is the runtime half of postgresql-dev, needed by asyncpg binaries.
