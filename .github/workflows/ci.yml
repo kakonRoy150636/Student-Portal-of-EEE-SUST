@@ -45,7 +45,7 @@ jobs:
         run: python -m pip_audit --local --format=json --output=pip-audit.json
       - name: Upload dependency audit
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pip-audit
           path: backend/pip-audit.json
@@ -109,7 +109,7 @@ jobs:
         run: python -m evals.retrieval_eval --fixture --mode fixture-hybrid --output retrieval-eval.json
       - name: Upload test and coverage reports
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-test-reports
           path: |
@@ -158,7 +158,7 @@ jobs:
         run: npm audit --audit-level=high --json > npm-audit.json
       - name: Upload npm audit
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: npm-audit
           path: frontend/npm-audit.json
@@ -200,7 +200,7 @@ jobs:
           cache: true
       - name: Upload image scan
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-${{ matrix.component }}
           path: trivy-${{ matrix.component }}.json
