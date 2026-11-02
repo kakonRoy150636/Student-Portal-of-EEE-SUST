@@ -163,6 +163,32 @@ jobs:
           name: npm-audit
           path: frontend/npm-audit.json
 
+  mobile:
+    name: Mobile lint, types and unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        if: ${{ !cancelled() }}
+        run: npm run typecheck
+      - name: Unit tests (routine grouping and API error mapping)
+        if: ${{ !cancelled() }}
+        run: npm test -- --ci
+
   images:
     name: Build and scan ${{ matrix.component }} image
     runs-on: ubuntu-24.04
