@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "SUST EEE Portal",
+    "slug": "sust-eee-portal",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": { "image": "./assets/splash.png", "resizeMode": "contain", "backgroundColor": "#0f172a" },
+    "ios": { "supportsTablet": true, "bundleIdentifier": "com.sust.eee.portal" },
+    "android": { "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#0f172a" }, "package": "com.sust.eee.portal" },
+    "web": { "bundler": "metro", "output": "static" },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "scheme": "susteeeportal",
+    "extra": {
+      "apiBaseUrl": "https://api.sust-eee-portal.example.com"
+    }
+  }
+}
