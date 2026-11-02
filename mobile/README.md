@@ -85,6 +85,66 @@ src/lib/            Axios client, session storage, pure helpers
 src/types/          Types mirroring backend/app/schemas
 ```
 
+## Install on a phone
+
+### Fastest: Expo Go (no build)
+
+Expo Go runs the JS bundle straight from a Metro dev server, so the phone and the
+machine running `npm start` must be able to reach each other.
+
+```bash
+cd mobile
+cp .env.example .env    # EXPO_PUBLIC_API_BASE_URL must be reachable *from the phone*
+npx expo start
+```
+
+Scan the printed QR with Expo Go (Android) or the Camera app (iOS). If the phone
+is on a different network than the dev machine, use `npx expo start --tunnel`.
+
+Note that `localhost` in `EXPO_PUBLIC_API_BASE_URL` resolves to the *phone*
+itself, so a laptop-hosted API must be addressed by its LAN IP
+(`http://192.168.x.x:8000/api/v1`) or a tunnel.
+
+### Installable APK (no Play Store, no local Android SDK)
+
+`eas.json` defines a `preview` profile that builds a real APK. This needs a free
+Expo account and an EAS project link, which the first command creates:
+
+```bash
+npm install -g eas-cli
+eas login
+eas build:configure          # writes extra.eas.projectId into app.json
+npx eas build -p android --profile preview
+```
+
+The build finishes with a download URL; open it on the phone to install the APK.
+The `preview` profile is `distribution: internal`, so the build is private to the
+Expo account rather than published to a store.
+
+For iOS, `npx eas build -p ios --profile preview` requires an Apple Developer
+account and registered device UDIDs.
+
+### Web build
+
+```bash
+npx expo export --platform web
+```
+
+The exported `dist/` runs in a mobile browser and can be added to the home
+screen. The access token is memory-only there, so a reload re-authenticates
+through the refresh cookie.
+
+### What the app needs from the API
+
+All three routes above talk to whatever `EXPO_PUBLIC_API_BASE_URL` was set to
+**at bundle time** — it is inlined, not read at runtime. Changing it requires a
+restart (`expo start`) or a new build. The current value is shown on the login
+screen and in Profile, so a misconfigured build is diagnosable without a
+debugger.
+
+Teacher and CR accounts also need an administrator to approve them before their
+first sign-in succeeds.
+
 ## Checks
 
 ```bash
