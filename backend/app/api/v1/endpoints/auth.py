@@ -14,7 +14,10 @@ from app.schemas.auth import (
     StudentRegisterRequest, RegisterResponse, PendingApprovalUser,
     AvatarUploadResponse, AvatarFinalizeRequest, AvatarFinalizeResponse,
 )
-from app.api.dependencies import get_current_user, get_avatar_actor, RequireRole, get_client_ip
+from app.api.dependencies import (
+    get_current_user, get_avatar_actor, RequireRole, get_client_ip,
+    get_access_token_payload, verify_browser_auth_request,
+)
 from app.api.request_limits import (
     limit_avatar_upload,
     limit_login,
@@ -77,6 +80,7 @@ async def login(
 
 @router.post("/refresh", response_model=AuthSessionResponse, dependencies=[Depends(limit_refresh)])
 async def refresh(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    verify_browser_auth_request(request)
     refresh_token = request.cookies.get(REFRESH_COOKIE)
     if not refresh_token:
         raise UnauthorizedException("No refresh token provided.")
@@ -98,9 +102,18 @@ async def me(user: User = Depends(get_current_user)):
 
 
 @router.post("/logout")
-async def logout(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+async def logout(
+    request: Request,
+    response: Response,
+    payload: dict = Depends(get_access_token_payload),
+    db: AsyncSession = Depends(get_db),
+):
+    verify_browser_auth_request(request)
     refresh_token = request.cookies.get(REFRESH_COOKIE)
     await AuthService(db).revoke_token(refresh_token)
+    ttl = max(1, int(payload["exp"] - __import__("time").time()))
+    from app.core.rate_limit import _get_redis
+    await _get_redis().set(f"auth:revoked:{payload['jti']}", "1", ex=ttl)
     response.delete_cookie(key=REFRESH_COOKIE, path=REFRESH_COOKIE_PATH)
     return {"message": "Logged out"}
 

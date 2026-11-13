@@ -1,12 +1,15 @@
+import ipaddress
 import uuid
 from typing import List
 import jwt
+from redis.exceptions import RedisError
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.rate_limit import _get_redis
 from app.models.user import User, UserRole
 from app.models.academic import (
     CourseOfferingTeacher,
@@ -16,26 +19,46 @@ from app.models.academic import (
 )
 
 security_scheme = HTTPBearer(auto_error=True)
+ACCESS_TOKEN_TYPE = "access"
 
-async def get_current_user(
+async def get_access_token_payload(
     cred: HTTPAuthorizationCredentials = Depends(security_scheme),
-    db: AsyncSession = Depends(get_db)
-) -> User:
+) -> dict:
     token = cred.credentials
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            issuer=settings.JWT_ISSUER,
+            audience=settings.JWT_AUDIENCE,
+        )
     except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Credentials invalid."
         )
-
-    # Only access tokens are accepted here; create_access_token stamps this
-    # claim and nothing else mints one, so a future refresh-token flow cannot
-    # accidentally be traded for an access token.
-    if payload.get("type") != "access":
+    if payload.get("type") != ACCESS_TOKEN_TYPE:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type."
         )
+    jti = payload.get("jti")
+    if not isinstance(jti, str):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.")
+    try:
+        revoked = await _get_redis().get(f"auth:revoked:{jti}")
+    except (RedisError, OSError):
+        if settings.is_production:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Token service unavailable.")
+        revoked = None
+    if revoked:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked.")
+    return payload
+
+
+async def get_current_user(
+    payload: dict = Depends(get_access_token_payload),
+    db: AsyncSession = Depends(get_db),
+) -> User:
 
     user_id = payload.get("sub")
     # Guard the UUID cast: an unparsable sub must be a 401, not an uncaught
@@ -70,14 +93,20 @@ async def get_avatar_actor(
     """
     token = cred.credentials
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            issuer=settings.JWT_ISSUER,
+            audience=settings.JWT_AUDIENCE,
+        )
     except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Credentials invalid."
         )
 
     token_type = payload.get("type")
-    if token_type not in ("access", "avatar_upload"):
+    if token_type not in (ACCESS_TOKEN_TYPE, "avatar_upload"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type."
         )
@@ -97,11 +126,20 @@ async def get_avatar_actor(
         )
     # Access tokens still require an active account. Upload tokens do not:
     # the whole point is to let a pending account finish attaching a photo.
-    if token_type == "access" and not user.is_active:
+    if token_type == ACCESS_TOKEN_TYPE and not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User not active."
         )
     return user
+
+
+def verify_browser_auth_request(request: Request) -> None:
+    origin = request.headers.get("origin")
+    if origin and origin not in settings.CORS_ORIGINS:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Origin not allowed.")
+    fetch_site = request.headers.get("sec-fetch-site")
+    if fetch_site and fetch_site not in {"same-origin", "same-site"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cross-site request rejected.")
 
 class RequireRole:
     def __init__(self, allowed_roles: List[UserRole]):
@@ -125,26 +163,45 @@ def get_client_ip(request: Request) -> str:
     per-IP bucket per request, which would defeat the IP counter entirely
     (verified: rotating XFF produced no backoff while a fixed value did).
 
-    TRUSTED_PROXIES is therefore an allowlist of proxy addresses that are
-    permitted to *speak for* their forwarded client. With it empty -- the
+    TRUSTED_PROXIES is therefore an allowlist of proxy addresses or CIDRs that
+    are permitted to *speak for* their forwarded client. With it empty -- the
     default, and correct for the current deployment where the API port is
     reached directly -- the peer address is used and XFF is ignored
     outright, so a spoofed header buys an attacker nothing.
 
-    Set TRUSTED_PROXIES when the API is placed behind a reverse proxy (a
-    real deployment must), listing the proxy's exact peer address, e.g.
-    TRUSTED_PROXIES='["172.16.0.5"]'. This is an exact-string match, not
-    a CIDR. Only then is the left-most XFF entry used, as recorded by
-    the outermost trusted hop.
+    Set TRUSTED_PROXIES when the API is placed behind a reverse proxy (a real
+    deployment must), listing the proxy's exact peer address or a narrowly
+    scoped CIDR, e.g. TRUSTED_PROXIES='["172.16.0.5"]'. Only then is the
+    left-most XFF entry used, as recorded by the outermost trusted hop.
     """
     peer = request.client.host if request.client else None
-    if peer and peer in settings.TRUSTED_PROXIES:
+    if peer and _is_trusted_proxy(peer):
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:
             first = forwarded.split(",")[0].strip()
             if first:
                 return first
     return peer or "unknown"
+
+
+def _is_trusted_proxy(peer: str) -> bool:
+    """Return whether a peer matches the configured proxy allowlist."""
+
+    try:
+        peer_ip = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    for configured in settings.TRUSTED_PROXIES:
+        try:
+            if "/" in configured:
+                if peer_ip in ipaddress.ip_network(configured, strict=False):
+                    return True
+            elif peer_ip == ipaddress.ip_address(configured):
+                return True
+        except ValueError:
+            # A malformed allowlist entry must not accidentally trust a peer.
+            continue
+    return False
 
 async def verify_course_teacher(
     course_offering_id: uuid.UUID,

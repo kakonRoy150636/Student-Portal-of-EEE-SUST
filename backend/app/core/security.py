@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 import jwt
@@ -40,7 +41,14 @@ def create_access_token(data: Dict[str, Any], expires_delta: timedelta | None = 
     expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    to_encode.update({"exp": expire, "iat": datetime.now(timezone.utc), "type": "access"})
+    to_encode.update({
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+        "jti": str(uuid.uuid4()),
+        "iss": settings.JWT_ISSUER,
+        "aud": settings.JWT_AUDIENCE,
+        "type": "access",
+    })
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -63,6 +71,9 @@ def create_upload_token(user_id: str, expires_delta: timedelta | None = None) ->
             "sub": str(user_id),
             "exp": expire,
             "iat": datetime.now(timezone.utc),
+            "jti": str(uuid.uuid4()),
+            "iss": settings.JWT_ISSUER,
+            "aud": settings.JWT_AUDIENCE,
             "type": "avatar_upload",
         },
         settings.SECRET_KEY,

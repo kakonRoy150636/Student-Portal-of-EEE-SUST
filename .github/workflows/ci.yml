@@ -13,6 +13,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  secret-scan:
+    name: Gitleaks secret scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   backend-quality:
     name: Backend lint, types and dependency audit
     runs-on: ubuntu-24.04
@@ -30,10 +43,12 @@ jobs:
           cache: pip
           cache-dependency-path: |
             backend/pyproject.toml
+            backend/requirements.lock
             backend/requirements-dev.txt
       - name: Install backend and checking tools
         run: |
           python -m pip install --upgrade pip setuptools
+          python -m pip install -r requirements.lock
           python -m pip install '.[dev,ci]'
       - name: Ruff
         run: python -m ruff check app tests alembic evals
@@ -57,7 +72,7 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
         env:
           POSTGRES_USER: portal_test
           POSTGRES_PASSWORD: ci-disposable-password
@@ -68,7 +83,7 @@ jobs:
           --health-cmd "pg_isready -U portal_test -d portal_test"
           --health-interval 5s --health-timeout 5s --health-retries 20
       redis:
-        image: redis:7-alpine
+        image: redis@sha256:57e4255cc971b1c8d6f8a6ca283ac01bc3ecdd914273ef6bfaede87aaecd6541
         ports:
           - 6379:6379
         options: >-
@@ -76,7 +91,6 @@ jobs:
           --health-interval 5s --health-timeout 3s --health-retries 20
     env:
       ENVIRONMENT: test
-      SECRET_KEY: ci-only-signing-key-never-use-in-production
       DATABASE_URL: postgresql+asyncpg://portal_test:ci-disposable-password@localhost:5432/portal_test
       TEST_DATABASE_URL: postgresql+asyncpg://portal_test:ci-disposable-password@localhost:5432/portal_test
       INTEGRATION_DATABASE_URL: postgresql://portal_test:ci-disposable-password@localhost:5432/portal_test
@@ -96,6 +110,8 @@ jobs:
           python-version: '3.11'
           cache: pip
           cache-dependency-path: backend/pyproject.toml
+      - name: Generate ephemeral test secret
+        run: echo "SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')" >> "$GITHUB_ENV"
       - run: |
           python -m pip install --upgrade pip setuptools
           python -m pip install '.[dev]'
