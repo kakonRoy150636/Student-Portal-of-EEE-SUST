@@ -16,7 +16,12 @@ class Settings(BaseSettings):
     DB_ECHO: bool = False
 
     REDIS_URL: str = "redis://redis:6379/0"
-    # Peer addresses permitted to speak for the client via X-Forwarded-For.
+    CLAMAV_HOST: str = ""
+    CLAMAV_PORT: int = 3310
+    JWT_ISSUER: str = "sust-eee-portal"
+    JWT_AUDIENCE: str = "sust-eee-portal-api"
+    # Peer addresses or CIDRs permitted to speak for the client via
+    # X-Forwarded-For.
     # Empty by default, which is correct while the API port is reached
     # directly: XFF is client-controlled, so trusting it unconditionally would
     # let an attacker mint a fresh throttle bucket per request and bypass the

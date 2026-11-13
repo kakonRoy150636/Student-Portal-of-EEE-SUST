@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS build
 WORKDIR /app
 COPY package*.json ./
 # Vite 8's native dependencies (including musl builds) are in the lockfile.
@@ -16,9 +16,9 @@ ARG VITE_FIREBASE_VAPID_KEY
 ARG VITE_S3_PUBLIC_ENDPOINT_URL=http://localhost:9000
 RUN npm run build
 
-FROM nginx:1.29-alpine3.23
+FROM nginx:1.29-alpine3.23@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
 # Refresh the Alpine security repository at image-build time so the runtime
 # image receives fixes released after the base image tag was published.
@@ -36,4 +36,4 @@ RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /usr/share/nginx/html \
 USER nginx
 
 EXPOSE 8080
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["sh", "-c", "envsubst '${S3_PUBLIC_ENDPOINT_URL} ${CSP_UPGRADE_INSECURE}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
