@@ -1,7 +1,8 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 
-const BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+const BASE = Constants.expoConfig?.extra?.apiBaseUrl ?? process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
 
 export const api = axios.create({ baseURL: BASE, timeout: 15000 });
 
